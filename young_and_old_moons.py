@@ -1,5 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf8
+"""
+    A "Young Moon" is a thin crescent Moon seen shortly after the New Moon.
+    See my blog post <http://blog.mhsundstrom.com/?p=167> for some more
+    information and there are some references from there with more information.
+    The "Old Moon" is almost the same, except it's looking for a thin crescent
+    Moon just before sunrise instead of just after sunset.
+
+    This program is an exploration of the data behind all of that.
+"""
 from __future__ import print_function
 import ephem
 
