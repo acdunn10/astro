@@ -6,10 +6,7 @@ import ephem
 sun = ephem.Sun()
 moon = ephem.Moon()
 
-observer = ephem.Observer()
-observer.lat = '40.0'
-observer.lon = '-83.0'
-observer.elevation = 250  # meters above sea level
+observer = ephem.city('Columbus')
 
 now = ephem.now()
 print("The time is", now)
@@ -31,7 +28,7 @@ for i in range(3):
     moon.compute(observer)
     print("Moon at sunset:", moon.az, moon.alt, moon.elong, moon.moon_phase)
     age = next_setting - new_moon
-    print("Young Moon age:", int(24*age))
+    print("Young Moon age:", int(24 * age))
     moonset = observer.next_setting(moon)
     print("Moonset:", ephem.localtime(moonset))
 
@@ -55,6 +52,6 @@ for i in range(3):
     moon.compute(observer)
     print("Moon at sunrise:", moon.az, moon.alt, moon.elong, moon.moon_phase)
     age = new_moon - prev_rising
-    print("Old Moon age:", int(24*age))
+    print("Old Moon age:", int(24 * age))
 
     starting_date = prev_rising

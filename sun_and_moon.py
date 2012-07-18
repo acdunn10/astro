@@ -20,12 +20,8 @@ from __future__ import print_function
 import ephem
 from math import degrees
 
-# Where are you?
-#   I've chosen a convenient Confluence point in my home town
-observer = ephem.Observer()
-observer.lat = '40.0'
-observer.lon = '-83.0'
-observer.elevation = 250  # meters above sea level
+# Since Columbus is in the XEphem cities database, just use it
+observer = ephem.city('Columbus')
 
 
 def main():
