@@ -10,57 +10,87 @@
     This program is an exploration of the data behind all of that.
 """
 from __future__ import print_function
+from pprint import pprint
 import ephem
+
+CITY = 'Columbus'
 
 sun = ephem.Sun()
 moon = ephem.Moon()
+observer = ephem.city(CITY)
 
-observer = ephem.city('Columbus')
 
-now = ephem.now()
-print("The time is", now)
-print("The local time is", ephem.localtime(now))
+def new_moons_in_year(year=None):
+    "Returns a list of New Moons in the specified year"
+    if year is None:
+        year = ephem.now().triple()[0]
+    date = ephem.Date(str(year))
+    new_moons = []
+    while True:
+        date = ephem.next_new_moon(date)
+        if date.triple()[0] > year:
+            break
+        new_moons.append(date)
+    return new_moons
 
-new_moon = ephem.next_new_moon(now)
-print("Next New Moon:", ephem.localtime(new_moon))
 
-starting_date = new_moon
+def young_moons(new_moon_date):
+    "Return Young Moon info for the specified New Moon date"
+    info_list = []
+    observer.date = new_moon_date
+    # get data about the first 3 sunsets after this New Moon
+    for i in range(3):
+        observer.date = observer.next_setting(sun)
+        sun.compute(observer)
+        moon.compute(observer)
+        d = {'Sunset': ephem.localtime(observer.date),
+             'Sun azimuth': sun.az,
+             'Moon azimuth': moon.az,
+             'Moon altitude': moon.alt,
+             'Sun-Moon elongation': moon.elong,
+             'Moon phase': moon.moon_phase,
+             'Age': 24 * (observer.date - new_moon_date),
+             }
+        observer.date = observer.next_setting(moon)
+        d.update({'Moonset': ephem.localtime(observer.date)})
+        info_list.append(d)
+    return info_list
 
-for i in range(3):
-    print()
-    next_setting = observer.next_setting(sun, start=starting_date)
-    print("Next sunset:", ephem.localtime(next_setting))
 
-    observer.date = next_setting
-    sun.compute(observer)
-    print("Sun azimuth at sunset:", sun.az)
-    moon.compute(observer)
-    print("Moon at sunset:", moon.az, moon.alt, moon.elong, moon.moon_phase)
-    age = next_setting - new_moon
-    print("Young Moon age:", int(24 * age))
-    moonset = observer.next_setting(moon)
-    print("Moonset:", ephem.localtime(moonset))
+def old_moons(new_moon_date):
+    "Return Old Moon info"
+    info_list = []
+    observer.date = new_moon_date
+    for i in range(3):
+        observer.date = observer.previous_rising(sun)
+        sun.compute(observer)
+        moon.compute(observer)
+        d = {'Sunrise': ephem.localtime(observer.date),
+             'Sun azimuth': sun.az,
+             'Moon azimuth': moon.az,
+             'Moon altitude': moon.alt,
+             'Sun-Moon elongation': moon.elong,
+             'Moon phase': moon.moon_phase,
+             'Age': 24 * (new_moon_date - observer.date)
+             }
+        info_list.append(d)
+    return list(reversed(info_list))
 
-    starting_date = moonset
 
-# Now do the old moon
-print('\nOld Moon')
-new_moon = ephem.next_new_moon(starting_date)
-print("Next New Moon:", ephem.localtime(new_moon))
+def young_and_old_moons(new_moon_date):
+    d = {'New Moon': new_moon_date,
+         'Young Moons': young_moons(new_moon_date),
+         'Old Moons': old_moons(new_moon_date)
+         }
+    return d
 
-starting_date = new_moon
 
-for i in range(3):
-    print()
-    prev_rising = observer.previous_rising(sun, start=starting_date)
-    print("Previous sunrise:", ephem.localtime(prev_rising))
+def young_and_old_by_year(year):
+    return [
+        young_and_old_moons(new_moon_date)
+        for new_moon_date in new_moons_in_year(year)
+        ]
 
-    observer.date = prev_rising
-    sun.compute(observer)
-    print("Sun azimuth at sunrise:", sun.az)
-    moon.compute(observer)
-    print("Moon at sunrise:", moon.az, moon.alt, moon.elong, moon.moon_phase)
-    age = new_moon - prev_rising
-    print("Old Moon age:", int(24 * age))
 
-    starting_date = prev_rising
+if __name__ == '__main__':
+    pprint(young_and_old_by_year(2012))
