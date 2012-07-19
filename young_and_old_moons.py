@@ -10,7 +10,6 @@
     This program is an exploration of the data behind all of that.
 """
 from __future__ import print_function
-from pprint import pprint
 import ephem
 
 CITY = 'Columbus'
@@ -69,7 +68,8 @@ def old_moons(new_moon_date):
              'Moon altitude': moon.alt,
              'Sun-Moon elongation': moon.elong,
              'Moon phase': moon.moon_phase,
-             'Age': 24 * (new_moon_date - observer.date)
+             'Age': 24 * (new_moon_date - observer.date),
+             'Moonrise': ephem.localtime(observer.previous_rising(moon))
              }
         info_list.append(d)
     return list(reversed(info_list))
@@ -86,11 +86,13 @@ def young_and_old_moons(new_moon_date):
 def young_and_old_by_year(year=None):
     if year is None:
         year = ephem.now().triple()[0]
-    return [
-        young_and_old_moons(new_moon_date)
-        for new_moon_date in new_moons_in_year(year)
-        ]
+    return {'Year': year,
+            'Moons': [
+                young_and_old_moons(new_moon_date)
+                for new_moon_date in new_moons_in_year(year)
+                ]
+            }
 
 
 if __name__ == '__main__':
-    pprint(young_and_old_by_year())
+    print(young_and_old_by_year())
