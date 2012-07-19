@@ -11,12 +11,11 @@
 """
 from __future__ import print_function
 import ephem
-
-CITY = 'Columbus'
+import defaults
 
 sun = ephem.Sun()
 moon = ephem.Moon()
-observer = ephem.city(CITY)
+observer = ephem.city(defaults.CITY)
 
 
 def new_moons_in_year(year):

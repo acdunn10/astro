@@ -16,11 +16,12 @@
 from __future__ import print_function
 import ephem
 import itertools
+import defaults
 
 
 def generate_sunrise_info():
     "Generate daily info about sunrise for an entire year"
-    observer = ephem.city('Columbus')
+    observer = ephem.city(defaults.CITY)
     sun = ephem.Sun()
     YEAR = 2012  # doesn't really matter what year we choose
     observer.date = ephem.date(str(YEAR))

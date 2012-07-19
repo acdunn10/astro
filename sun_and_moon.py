@@ -19,9 +19,9 @@
 from __future__ import print_function
 import ephem
 from math import degrees
+import defaults
 
-# Since Columbus is in the XEphem cities database, just use it
-observer = ephem.city('Columbus')
+observer = ephem.city(defaults.CITY)
 
 
 def main():

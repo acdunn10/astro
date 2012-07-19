@@ -4,6 +4,7 @@
 """
 from __future__ import print_function
 import ephem
+import defaults
 
 
 def generate_rise_set(year, observer):
@@ -19,5 +20,5 @@ def generate_rise_set(year, observer):
         yield (sunrise, observer.date)
 
 if __name__ == '__main__':
-    for sunrise, sunset in generate_rise_set(2012, ephem.city('Columbus')):
+    for sunrise, sunset in generate_rise_set(2012, ephem.city(defaults.CITY)):
         print(sunrise, sunset)
