@@ -20,10 +20,8 @@ moon = ephem.Moon()
 observer = ephem.city(CITY)
 
 
-def new_moons_in_year(year=None):
+def new_moons_in_year(year):
     "Returns a list of New Moons in the specified year"
-    if year is None:
-        year = ephem.now().triple()[0]
     date = ephem.Date(str(year))
     new_moons = []
     while True:
@@ -85,7 +83,9 @@ def young_and_old_moons(new_moon_date):
     return d
 
 
-def young_and_old_by_year(year):
+def young_and_old_by_year(year=None):
+    if year is None:
+        year = ephem.now().triple()[0]
     return [
         young_and_old_moons(new_moon_date)
         for new_moon_date in new_moons_in_year(year)
@@ -93,4 +93,4 @@ def young_and_old_by_year(year):
 
 
 if __name__ == '__main__':
-    pprint(young_and_old_by_year(2012))
+    pprint(young_and_old_by_year())
