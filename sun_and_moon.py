@@ -24,27 +24,23 @@ import defaults
 observer = ephem.city(defaults.CITY)
 
 
-def main():
-    def show(body, time, rs):
-        print("{:%I:%M %p %a} {}{}  Azi {:3.0f}".format(
-            ephem.localtime(time), body.name, rs, degrees(float(body.az))))
+def calculate(symbol, body):
+    if body.alt > 0:
+        az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
+        current = u'Azi {:3.0f}\xb0 Alt {:.0f}\xb0'.format(az, alt)
+        rising_method = observer.previous_rising
+    else:
+        current = None
+        rising_method = observer.next_rising
+    fmt = u'{} {:%I:%M %p %a} Azi {:.0f}\xb0'
+    rising = ephem.localtime(rising_method(body))
+    r = fmt.format(u'Rise', rising, degrees(float(body.az)))
+    setting = ephem.localtime(observer.next_setting(body))
+    s = fmt.format(u'Set', setting, degrees(float(body.az)))
+    print(u'{}{} {}\u2605{}'.format(symbol, body.name, r, s))
+    if current:
+        print(u'{} {}'.format(symbol, current))
 
-    for body in (ephem.Sun(observer), ephem.Moon(observer)):
-        if body.alt > 0:
-            current = ' Azi {:3.0f} Alt {:3.0f}'.format(
-                degrees(float(body.az)), degrees(float(body.alt)))
-            rising = observer.previous_rising(body)
-            show(body, rising, 'rise')
-            print(current)
-            setting = observer.next_setting(body)
-            show(body, setting, 'set')
-        else:
-            current = ''
-            rising = observer.next_rising(body)
-            show(body, rising, 'rise')
-            setting = observer.next_setting(body)
-            show(body, setting, 'set')
-        print()
 
-if __name__ == '__main__':
-    main()
+calculate(u'\u263c', ephem.Sun(observer))
+calculate(u'\u263d', ephem.Moon(observer))
