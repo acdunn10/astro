@@ -48,8 +48,16 @@ def calculate(symbol, body):
     if current:
         yield u'{} {}'.format(symbol, current)
 
-source = (u'\u263c', ephem.Sun(observer)), (u'\u263d', ephem.Moon(observer))
-for symbol, body in source:
-    for line in calculate(symbol, body):
+def sun_and_moon():
+    source = (
+        (u'\u263c', ephem.Sun(observer)),
+        (u'\u263d', ephem.Moon(observer))
+        )
+    for symbol, body in source:
+        for line in calculate(symbol, body):
+            yield line
+
+if __name__ == '__main__':
+    for line in sun_and_moon():
         s = line.encode('utf8')
         print(s)

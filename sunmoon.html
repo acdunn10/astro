@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Sun and Moon</title>
+</head>
+<body>
+
+<section>
+<h1>Sun and Moon</h1>
+<pre>
+<!--[[[cog
+import cog
+from sun_and_moon import sun_and_moon
+for line in sun_and_moon():
+    cog.outl(line.encode('utf8'))
+]]]-->
+☼Sun Rise 06:22 AM Mon Azi 63°★Set 08:53 PM Mon Azi 297°
+☼ Azi  71° Alt 9°
+☽Moon Rise 11:11 AM Mon Azi 94°★Set 11:07 PM Mon Azi 263°
+<!--[[[end]]]-->
+</pre>
+</section>
+
+<section>
+<h1>About</h1>
+<p>
+I just read about <a href="http://nedbatchelder.com/code/cog/">Cog</a>, so created this simple example of using it.<br>
+On the command line, run<br>
+<code>cog.py -r sunmoon.html</code><br>
+to generate the inserted code.
+</p>
+</section>
+
+</body>
+</html>
+    
