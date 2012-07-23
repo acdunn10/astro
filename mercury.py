@@ -16,10 +16,17 @@ import defaults
 observer = ephem.city(defaults.CITY)
 mercury = ephem.Mercury()
 
-for sunrise, sunset in generate_rise_set(2012, observer):
-    # where is Mercury at sunset?
-    observer.date = sunset
+
+def report(what, when):
+    observer.date = when
     mercury.compute(observer)
     if mercury.alt > 0:
-        print(ephem.localtime(observer.date).date(),
-            mercury.alt, mercury.elong)
+        print("{:7} {:%b %d} Alt {}  Elongation {}".format(
+            what, ephem.localtime(observer.date).date(),
+            mercury.alt, mercury.elong))
+
+year = 2012
+print("Mercury's position at sunrise or sunset for", year)
+for sunrise, sunset in generate_rise_set(year, observer):
+    report("Sunrise", sunrise)
+    report("Sunset", sunset)
