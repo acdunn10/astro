@@ -21,10 +21,15 @@
 from __future__ import print_function
 import ephem
 from math import degrees
+import itertools
 import defaults
 
-observer = ephem.city(defaults.CITY)
+SUN_SYMBOL = u'\u263c'
+MOON_SYMBOL = u'\u263d'
 
+observer = ephem.city(defaults.CITY)
+sun = ephem.Sun(observer)
+moon = ephem.Moon(observer)
 
 def calculate(symbol, body):
     """
@@ -48,16 +53,44 @@ def calculate(symbol, body):
     if current:
         yield u'{} {}'.format(symbol, current)
 
+
 def sun_and_moon():
+    "Rise, set and current position of the Sun and Moon"
     source = (
-        (u'\u263c', ephem.Sun(observer)),
-        (u'\u263d', ephem.Moon(observer))
+        (SUN_SYMBOL, sun),
+        (MOON_SYMBOL, moon)
         )
     for symbol, body in source:
         for line in calculate(symbol, body):
             yield line
 
+def moon_info():
+    "A bit more useful information about the Moon"
+    now = ephem.now()
+    previous_new = ephem.previous_new_moon(now)
+    moon_age = 24 * (now - previous_new)
+    if moon_age <= 72:
+        yield u"{} Young Moon: {:.1f} hours".format(MOON_SYMBOL, moon_age)
+    else:
+        next_new = ephem.next_new_moon(now)
+        moon_age = 24 * (next_new - now)
+        if moon_age <= 72:
+            yield u"{} Old Moon {:.1f} hours".format(MOON_SYMBOL, moon_age)
+    moon.compute(now)
+    moon_distance_miles = ephem.meters_per_au * moon.earth_distance / 1609.344
+    yield u"{}Phase {:.2f}%, {:,.1f} miles".format(
+        MOON_SYMBOL, moon.phase, moon_distance_miles)
+    events = [
+        ("First Quarter", ephem.next_first_quarter_moon(now)),
+        ("Full Moon", ephem.next_full_moon(now)),
+        ("Last Quarter", ephem.next_last_quarter_moon(now)),
+        ("New Moon", ephem.next_new_moon(now))
+        ]
+    events.sort(key=lambda x:x[1])
+    yield u"{}{} {}".format(MOON_SYMBOL, *events[0])
+
+
 if __name__ == '__main__':
-    for line in sun_and_moon():
+    for line in itertools.chain(sun_and_moon(), moon_info()):
         s = line.encode('utf8')
         print(s)
