@@ -18,6 +18,7 @@
 """
 from __future__ import print_function
 from __future__ import unicode_literals
+from __future__ import division
 import ephem
 from math import degrees
 import itertools
@@ -26,6 +27,7 @@ import defaults
 SUN_SYMBOL = '\u263c'
 MOON_SYMBOL = '\u263d'
 METERS_PER_MILE = 1609.344
+MILES_PER_AU = ephem.meters_per_au / METERS_PER_MILE
 
 observer = ephem.city(defaults.CITY)
 sun = ephem.Sun(observer)
@@ -83,10 +85,14 @@ def moon_info():
         if moon_age <= 72:
             yield "{} Old Moon {:.1f} hours".format(MOON_SYMBOL, moon_age)
     moon.compute(now)
-    moon_distance_miles = ephem.meters_per_au *\
-        moon.earth_distance / METERS_PER_MILE
-    yield "{}Phase {:.2f}%, {:,.1f} miles".format(
-        MOON_SYMBOL, moon.phase, moon_distance_miles)
+    distance = moon.earth_distance * MILES_PER_AU
+    now += ephem.minute
+    moon.compute(now)
+    moved = (moon.earth_distance * MILES_PER_AU) - distance
+    s = "further" if moved > 0 else "closer"
+    mph = abs(60 * moved)
+    yield "{}Phase {:.2f}%, {:,.1f} miles, {} at {:.0f}mph".format(
+        MOON_SYMBOL, moon.phase, distance, s, mph)
 
 
 if __name__ == '__main__':
