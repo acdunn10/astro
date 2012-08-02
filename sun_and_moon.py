@@ -84,15 +84,19 @@ def moon_info():
         moon_age = 24 * (next_new - now)
         if moon_age <= 72:
             yield "{} Old Moon {:.1f} hours".format(MOON_SYMBOL, moon_age)
+    # where is the moon now
     moon.compute(now)
     distance = moon.earth_distance * MILES_PER_AU
+    phase = moon.phase
+    # where is the Moon one minute later
     now += ephem.minute
     moon.compute(now)
+    ps = "↑" if moon.phase > phase else "↓"
     moved = (moon.earth_distance * MILES_PER_AU) - distance
-    s = "further" if moved > 0 else "closer"
+    ds = "further" if moved > 0 else "closer"
     mph = abs(60 * moved)
-    yield "{}Phase {:.2f}%, {:,.1f} miles, {} at {:.0f}mph".format(
-        MOON_SYMBOL, moon.phase, distance, s, mph)
+    yield "{}Phase {:.2f}%{}, {:,.1f} miles, {} at {:.1f}mph".format(
+        MOON_SYMBOL, phase, ps, distance, ds, mph)
 
 
 if __name__ == '__main__':
