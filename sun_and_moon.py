@@ -55,11 +55,13 @@ def calculate(symbol, body):
     if body.alt > 0:
         az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
         rising_method = observer.previous_rising
+        srise = 'Rose'
     else:
         rising_method = observer.next_rising
+        srise = 'Rise'
     fmt = '{} {:%I:%M %p %a} Azi {:.0f}\xb0'
     rising = ephem.localtime(rising_method(body))
-    r = fmt.format('Rise', rising, degrees(float(body.az)))
+    r = fmt.format(srise, rising, degrees(float(body.az)))
     setting = ephem.localtime(observer.next_setting(body))
     s = fmt.format('Set', setting, degrees(float(body.az)))
     yield '{}{}   {}{}'.format(symbol, r, symbol, s)
