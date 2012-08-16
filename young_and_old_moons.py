@@ -94,4 +94,5 @@ def young_and_old_by_year(year=None):
 
 
 if __name__ == '__main__':
-    print(young_and_old_by_year())
+    from pprint import pprint
+    pprint(young_and_old_by_year())
