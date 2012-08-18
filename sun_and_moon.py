@@ -24,8 +24,7 @@ from math import degrees
 import itertools
 import defaults
 
-SUN_SYMBOL = '\u263c'
-MOON_SYMBOL = '\u263d'
+
 METERS_PER_MILE = 1609.344
 MILES_PER_AU = ephem.meters_per_au / METERS_PER_MILE
 
@@ -33,7 +32,7 @@ observer = ephem.city(defaults.CITY)
 sun = ephem.Sun(observer)
 moon = ephem.Moon(observer)
 
-SOURCE = ((SUN_SYMBOL, sun), (MOON_SYMBOL, moon))
+SOURCE = (('☼', sun), ('☽', moon))
 
 
 def sky_position():
@@ -80,12 +79,12 @@ def moon_info():
     previous_new = ephem.previous_new_moon(now)
     moon_age = 24 * (now - previous_new)
     if moon_age <= 72:
-        yield "{} Young Moon: {:.1f} hours".format(MOON_SYMBOL, moon_age)
+        yield "☽ Young Moon: {:.1f} hours".format(moon_age)
     else:
         next_new = ephem.next_new_moon(now)
         moon_age = 24 * (next_new - now)
         if moon_age <= 72:
-            yield "{} Old Moon {:.1f} hours".format(MOON_SYMBOL, moon_age)
+            yield "☽ Old Moon {:.1f} hours".format(moon_age)
     # where is the moon now
     moon.compute(now)
     distance = moon.earth_distance * MILES_PER_AU
@@ -97,8 +96,8 @@ def moon_info():
     moved = (moon.earth_distance * MILES_PER_AU) - distance
     ds = "further" if moved > 0 else "closer"
     mph = abs(60 * moved)
-    yield "{}Phase {:.2f}%{}, {:,.1f} miles, {} at {:.1f}mph".format(
-        MOON_SYMBOL, phase, ps, distance, ds, mph)
+    yield "☽ Phase {:.2f}%{}, {:,.1f} miles, {} at {:.1f}mph".format(
+        phase, ps, distance, ds, mph)
 
 
 if __name__ == '__main__':
