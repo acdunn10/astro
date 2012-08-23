@@ -97,13 +97,8 @@ def moon_info():
     moved = (moon.earth_distance * MILES_PER_AU) - distance
     ds = "⬆" if moved > 0 else "⬇"
     mph = abs(60 * moved)
-<<<<<<< HEAD
-    yield "☽ Phase {:.2f}%{}, {:,.1f} miles, {} at {:.1f}mph".format(
+    yield "☽Phase {:.2f}%{}, {:,.1f} miles, {}{:.1f}mph".format(
         phase, ps, distance, ds, mph)
-=======
-    yield "{}Phase {:.2f}%{}, {:,.1f} miles, {}{:.1f}mph".format(
-        MOON_SYMBOL, phase, ps, distance, ds, mph)
->>>>>>> Unicode characters are fun
 
 
 if __name__ == '__main__':
