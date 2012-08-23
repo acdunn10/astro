@@ -40,8 +40,9 @@ def sky_position():
     for symbol, body in SOURCE:
         if body.alt > 0:
             az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
-            current.append('{} Azi {:3.0f}\xb0 Alt {:.0f}\xb0'.format(
-                symbol, az, alt))
+            up_or_down = '⬆' if az <= 180 else '⬇'
+            current.append('{} {:3.0f}°⇔  {:.0f}°{}'.format(
+                symbol, az, alt, up_or_down))
     yield '   '.join(current)
 
 
@@ -58,7 +59,7 @@ def calculate(symbol, body):
     else:
         rising_method = observer.next_rising
         srise = 'Rise'
-    fmt = '{} {:%I:%M %p %a} Azi {:.0f}\xb0'
+    fmt = '{} {:%I:%M %p %a} {:.0f}°⇔'
     rising = ephem.localtime(rising_method(body))
     r = fmt.format(srise, rising, degrees(float(body.az)))
     setting = ephem.localtime(observer.next_setting(body))
@@ -92,12 +93,17 @@ def moon_info():
     # where is the Moon one minute later
     now += ephem.minute
     moon.compute(now)
-    ps = "↑" if moon.phase > phase else "↓"
+    ps = "⬆" if moon.phase > phase else "⬇"
     moved = (moon.earth_distance * MILES_PER_AU) - distance
-    ds = "further" if moved > 0 else "closer"
+    ds = "⬆" if moved > 0 else "⬇"
     mph = abs(60 * moved)
+<<<<<<< HEAD
     yield "☽ Phase {:.2f}%{}, {:,.1f} miles, {} at {:.1f}mph".format(
         phase, ps, distance, ds, mph)
+=======
+    yield "{}Phase {:.2f}%{}, {:,.1f} miles, {}{:.1f}mph".format(
+        MOON_SYMBOL, phase, ps, distance, ds, mph)
+>>>>>>> Unicode characters are fun
 
 
 if __name__ == '__main__':
