@@ -19,6 +19,7 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import division
+import os
 import ephem
 from math import degrees
 import itertools
@@ -28,7 +29,14 @@ import defaults
 METERS_PER_MILE = 1609.344
 MILES_PER_AU = ephem.meters_per_au / METERS_PER_MILE
 
-observer = ephem.city(defaults.CITY)
+if 'OBSERVER' in os.environ:
+    # Easy to way to use a different lat/lon if there's no convenient city
+    observer = ephem.Observer()
+    observer.lat, observer.lon = [
+        i.encode('ascii') for i in os.environ['OBSERVER'].split(',')
+        ]
+else:
+    observer = ephem.city(defaults.CITY)
 sun = ephem.Sun(observer)
 moon = ephem.Moon(observer)
 
