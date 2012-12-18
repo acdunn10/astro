@@ -1,6 +1,4 @@
-#!/usr/bin/env python
 # -*- coding: utf8
-from __future__ import print_function
 import ephem
 
 now = ephem.now()

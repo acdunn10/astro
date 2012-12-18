@@ -1,10 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf8
 """
 """
-from __future__ import print_function
 import ephem
-import defaults
 
 
 def generate_rise_set(year, observer):
@@ -35,9 +32,7 @@ def generate_twilight(year, observer, value='-6'):
         yield (morning, evening)
 
 
-
-
-
 if __name__ == '__main__':
-    for sunrise, sunset in generate_rise_set(2012, ephem.city(defaults.CITY)):
+    from . import CITY
+    for sunrise, sunset in generate_rise_set(2012, ephem.city(CITY)):
         print(sunrise, sunset)

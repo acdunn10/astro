@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf8
 """
     Calculate rise, set and location for the Sun and Moon today.
@@ -12,23 +11,15 @@
     A similar tool for Windows is called Rainmeter:
         http://rainmeter.net/
 
-    Using Python 2.7
-
     GeekTool gets a UnicodeEncodeError unless I use line.encode('utf8')
 """
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import division
 import ephem
 from math import degrees
 import itertools
-import defaults
+from . import CITY, MILES_PER_AU
 
 
-METERS_PER_MILE = 1609.344
-MILES_PER_AU = ephem.meters_per_au / METERS_PER_MILE
-
-observer = ephem.city(defaults.CITY)
+observer = ephem.city(CITY)
 sun = ephem.Sun(observer)
 moon = ephem.Moon(observer)
 mercury = ephem.Mercury(observer)
@@ -122,4 +113,4 @@ def moon_info():
 
 if __name__ == '__main__':
     for line in itertools.chain(sky_position(), sun_and_moon(), moon_info()):
-        print(line.encode('utf8'))
+        print(line)  #print(line.encode('utf8'))

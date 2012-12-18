@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf8
 """
     When is Mercury next visible?
@@ -7,13 +6,11 @@
     from the Sun. But every now and then it's more easily seen than
     at other times. I'm trying to find those times.
 """
-from __future__ import print_function
-from __future__ import division
 import ephem
-from sun import generate_rise_set, generate_twilight
-import defaults
+from .sun import generate_rise_set, generate_twilight
+from . import CITY
 
-observer = ephem.city(defaults.CITY)
+observer = ephem.city(CITY)
 mercury = ephem.Mercury()
 min_altitude = ephem.degrees('10')
 

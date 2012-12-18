@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf8
 """
     A "Young Moon" is a thin crescent Moon seen shortly after the New Moon.
@@ -9,13 +8,12 @@
 
     This program is an exploration of the data behind all of that.
 """
-from __future__ import print_function
 import ephem
-import defaults
+from . import CITY
 
 sun = ephem.Sun()
 moon = ephem.Moon()
-observer = ephem.city(defaults.CITY)
+observer = ephem.city(CITY)
 
 
 def new_moons_in_year(year):

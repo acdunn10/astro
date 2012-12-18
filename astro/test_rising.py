@@ -1,13 +1,10 @@
-#!/usr/bin/env python
 # -*- coding: utf8
 """
     sun_and_moon.py will show rise and set for the next day when it gets
     close to rising time. This is some experiments on how best to deal with it.
 """
-from __future__ import print_function
 import ephem
-import defaults
-from sun_and_moon import sun, moon, observer
+from .sun_and_moon import sun, moon, observer
 
 observer.pressure = 0
 observer.horizon = '-0:34'

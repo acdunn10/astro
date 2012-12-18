@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf8
 """
     http://spaceflight.nasa.gov/realdata/sightings/cities/view.cgi?
@@ -7,11 +6,10 @@
 
     Need to keep the station data up-to-date
 """
-from __future__ import print_function
 import ephem
-import defaults
+from . import CITY
 
-observer = ephem.city(defaults.CITY)
+observer = ephem.city(CITY)
 #observer.date = '2012/07/28 06:30:00'
 
 STATION = """ISS (ZARYA)

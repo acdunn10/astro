@@ -1,22 +1,18 @@
-#!/usr/bin/env python
 # -*- coding: utf8
 """
     Inner planets
 """
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import division
 import ephem
-import defaults
-from itertools import tee, izip
-from collections import namedtuple
+import collections
+from . import CITY
+from .utils import pairwise
 
-observer = ephem.city(defaults.CITY)
+observer = ephem.city(CITY)
 sun = ephem.Sun(observer)
 mercury = ephem.Mercury(observer)
 venus = ephem.Venus(observer)
 
-Elong = namedtuple('Elong', 'date angle diff')
+Elong = collections.namedtuple('Elong', 'date angle diff')
 
 def hourly(year, planet):
     "Hourly position report for a planet"
@@ -25,12 +21,6 @@ def hourly(year, planet):
         planet.compute(date)
         yield Elong(date, planet.elong, ephem.degrees(0))
         date = ephem.Date(date + ephem.hour)
-
-def pairwise(iterable):
-    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
-    a, b = tee(iterable)
-    next(b, None)
-    return izip(a, b)
 
 def elongation():
     for a, b in pairwise(hourly(2009, ephem.Venus())):
