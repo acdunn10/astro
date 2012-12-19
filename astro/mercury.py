@@ -4,26 +4,35 @@
 
     Mercury is a bit hard to see because it never gets very far away
     from the Sun. But every now and then it's more easily seen than
-    at other times. I'm trying to find those times.
+    at other times.
+
+    Calculate the altitude of Mercury at sunrise and sunset for
+    the next number of days. If the altitude exceeds our minimum,
+    then Mercury should be fairly visible.
 """
 import ephem
-from .sun import generate_rise_set, generate_twilight
 from . import CITY
+from .utils import generate_rise_set
 
-observer = ephem.city(CITY)
-mercury = ephem.Mercury()
-min_altitude = ephem.degrees('10')
+MINIMUM_ALTITUDE = ephem.degrees('10')
+DAYS_AHEAD = 120
 
 def report(what, when):
     observer.date = when
     mercury.compute(observer)
-    if mercury.alt > min_altitude:
+    if mercury.alt > MINIMUM_ALTITUDE:
         print("{:7} {:%b %d} Alt {}".format(
             what, ephem.localtime(observer.date).date(),
             mercury.alt))
 
-year = 2012
-print("Mercury's position at sunrise or sunset for", year)
-for sunrise, sunset in generate_rise_set(year, observer):
-    report("Morning", sunrise)
-    report("Evening", sunset)
+if __name__ == '__main__':
+    mercury = ephem.Mercury()
+    sun = ephem.Sun()
+    observer = ephem.city(CITY)
+    start_date = ephem.now()
+    finish_date = ephem.date(start_date + DAYS_AHEAD)
+    print(start_date, finish_date)
+    for info in generate_rise_set(sun, observer, start_date, finish_date):
+        report("Morning", info.rise)
+        report("Evening", info.set)
+

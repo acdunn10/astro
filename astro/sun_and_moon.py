@@ -18,14 +18,7 @@ import itertools
 from . import CITY, MILES_PER_AU
 
 
-if 'OBSERVER' in os.environ:
-    # Easy to way to use a different lat/lon if there's no convenient city
-    observer = ephem.Observer()
-    observer.lat, observer.lon = [
-        i.encode('ascii') for i in os.environ['OBSERVER'].split(',')
-        ]
-else:
-    observer = ephem.city(CITY)
+observer = ephem.city(CITY)
 sun = ephem.Sun(observer)
 moon = ephem.Moon(observer)
 
@@ -48,6 +41,9 @@ def calculate(symbol, body):
         Calculate the appropriate rising and setting time. We'll
         calculate tomorrow's time if the body is not currently
         above the horizon.
+
+        TODO - this does not work right if the time is near the rise
+        or set. Ignoring this for now.
     """
     if body.alt > 0:
         az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
@@ -97,10 +93,10 @@ def moon_info():
     yield "☽Phase {:.2f}%{}, {:,.1f} miles, {}{:.1f}mph".format(
         phase, ps, distance, ds, mph)
 
+def main():
+    for line in itertools.chain(sky_position(), sun_and_moon(), moon_info()):
+        print(line)
 
 if __name__ == '__main__':
-    # GeekTool gets a UnicodeEncodeError unless I use line.encode('utf8')
-    for line in itertools.chain(sky_position(), sun_and_moon(), moon_info()):
-        # print(line.encode('utf8'))
-        print(line)
+    main()
 

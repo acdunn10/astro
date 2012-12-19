@@ -19,5 +19,8 @@ Python 3.3:
     easy_install --version
     # Now install ephem. I keep a local copy
     easy_install ~/Dropbox/src/ephem-3.7.5.1.tar.gz
+    # Install requests -- used in space_station.py to get
+    # the space station satellite data
+    easy_install requests
     # I usually work directly in the repository
     cd ~/github/astro

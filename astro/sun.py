@@ -1,20 +1,9 @@
 # -*- coding: utf8
-"""
+""" Report on sunrise, sunset and azimuth values for the current year
 """
 import ephem
-
-
-def generate_rise_set(year, observer):
-    "Generate sunrise and sunset times for a given year"
-    sun = ephem.Sun()
-    observer.date = ephem.date(str(year))
-    while True:
-        observer.date = observer.next_rising(sun)
-        if observer.date.triple()[0] > year:
-            break
-        sunrise = observer.date
-        observer.date = observer.next_setting(sun)
-        yield (sunrise, observer.date)
+from .utils import generate_rise_set
+from . import CITY
 
 
 def generate_twilight(year, observer, value='-6'):
@@ -33,6 +22,11 @@ def generate_twilight(year, observer, value='-6'):
 
 
 if __name__ == '__main__':
-    from . import CITY
-    for sunrise, sunset in generate_rise_set(2012, ephem.city(CITY)):
-        print(sunrise, sunset)
+    year = ephem.now().triple()[0]
+    start_date = ephem.date(str(year))
+    end_date = ephem.date('{}/12/31'.format(year))
+    for info in generate_rise_set(ephem.Sun(), ephem.city(CITY),
+                                  start_date, end_date):
+        r, s = map(ephem.localtime, (info.rise, info.set))
+        print('{0:%Y-%m-%d} {0:%H:%M:%S} {2.rise_az} {1:%H:%M:%S} {2.set_az}'.format(
+                r, s, info))

@@ -4,7 +4,7 @@
     close to rising time. This is some experiments on how best to deal with it.
 """
 import ephem
-from .sun_and_moon import sun, moon, observer
+from astro.sun_and_moon import sun, moon, observer
 
 observer.pressure = 0
 observer.horizon = '-0:34'
