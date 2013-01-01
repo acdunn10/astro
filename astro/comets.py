@@ -11,7 +11,7 @@ import requests
 import time
 import itertools
 import collections
-from . import CITY
+from . import CITY, MILES_PER_AU
 from math import degrees
 
 # A place to locally save Comet elements
@@ -32,15 +32,15 @@ def save_comet_elements():
 def get_comet_elements():
     with open(SOURCE) as f:
         s = f.readline().strip()
-        last_request = time.mktime(time.strptime(s[7:], "%d %b %Y %H:%M:%S GMT"))
-        # TODO - should convert to GMT
+        t = time.strptime(s[7:], "%d %b %Y %H:%M:%S %Z")
+        last_modified = time.mktime(t)
         comets = {}
         for line in f:
             if line.startswith('#'):
                 continue
             name = line.split(',', 1)[0]
             comets[name] = line.strip()
-    return (last_request, comets)
+    return (last_modified, comets)
 
 def sky_position(body):
     symbol = '☄'
@@ -59,7 +59,7 @@ def sky_position(body):
     r = fmt.format(srise, rising, degrees(float(body.az)))
     setting = ephem.localtime(observer.next_setting(body))
     s = fmt.format('Set', setting, degrees(float(body.az)))
-    print('{} {}   {}{}'.format(symbol, r, symbol, s))
+    print('{} {}   {} {}'.format(symbol, r, symbol, s))
 
 def where_is(name, elements, observer):
     print("Where is", name)
@@ -67,10 +67,11 @@ def where_is(name, elements, observer):
     comet.compute(observer)
     print('R.A.', comet.ra, 'Decl.', comet.dec)
     sky_position(comet)
-    print('Magnitude: {0.mag:.2f} Elongation:{0.elong}'.format(comet))
+    print('Magnitude: {0.mag:.1f} Elongation:{0.elong}'.format(comet))
     print('Constellation', ephem.constellation(comet)[1])
-
     print('Distance: Sun={0.sun_distance:.3f} Earth={0.earth_distance:.3f}'.format(comet))
+    earth_distance = comet.earth_distance * MILES_PER_AU
+    print('{:,.0f} miles from Earth'.format(earth_distance))
 
 if __name__ == '__main__':
     observer = ephem.city(CITY)
@@ -78,13 +79,14 @@ if __name__ == '__main__':
         print('Requesting comet data from minorplanetcenter.net ...')
         save_comet_elements()
     assert os.path.exists(SOURCE), "Expected to have comet elements"
-    last_modified = os.path.getmtime(SOURCE)
-    last_request, comets = get_comet_elements()
-    file_age = (time.time() - last_modified) / 3600
-    request_age = 4 + ((time.time() - last_request) / 3600) # temporary hack
-    print("Request age: {:.1f} hours, file age: {:.1f} hours".format(
-        request_age, file_age))
-    print(len(comets),'comets.')
+    last_modified, comets = get_comet_elements()
+    elements_age = (time.mktime(time.gmtime()) - last_modified) / 86400
+    print('{} comets. Last modified: {:.1f} days ago'.format(
+        len(comets), elements_age))
     for name in comets:
         if name in NAMES:
             where_is(name, comets[name], observer)
+    if elements_age >= 7.0:
+        print("Requesting new comet data due to age")
+        save_comet_elements()
+
