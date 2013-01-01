@@ -1,4 +1,5 @@
-from .daily import main
 
 if __name__ == '__main__':
-    main()
+    print("Run the individual modules, e.g.",
+          "python -m astro.moon\n"
+          "Eventually we should do more here.")

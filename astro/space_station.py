@@ -21,19 +21,21 @@ SatPass = collections.namedtuple('SatPass',
     'rise_time rise_az transit_time transit_alt set_time set_az')
 
 def satellite_observations(satellite, observer, passes=PASSES):
-    """ However, one thing this does not tell me is if the
-        satellite is illuminated by the Sun. If it's not, then
-        it won't be visible.
-    """
     satellite.compute(observer)
-    print("Current position: Az={0.az} Alt={0.alt}".format(satellite))
+    print("Current position: Lat={0.sublat} Lon={0.sublong}".format(satellite))
+    print("Elevation: {0.elevation}".format(satellite))
+    print("Range: {0.range}".format(satellite))
+    print("Range velocity: {0.range_velocity}".format(satellite))
+    print("Eclipsed? {0.eclipsed}".format(satellite))
     sun = ephem.Sun(observer)
     for i in range(PASSES):
         info = SatPass(*observer.next_pass(satellite))
         observer.date = info.transit_time
         sun.compute(observer)
-        print(ephem.localtime(info.transit_time).replace(microsecond=0),
-            info.transit_alt, sun.alt)
+        satellite.compute(observer)
+        if not satellite.eclipsed:
+            transit_time = ephem.localtime(info.transit_time).replace(microsecond=0)
+            print("Transit ", transit_time, "at", info.transit_alt)
         observer.date = info.set_time + ephem.minute
 
 def save_stations():
