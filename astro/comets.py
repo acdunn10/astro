@@ -66,12 +66,17 @@ def where_is(name, elements, observer):
     comet = ephem.readdb(elements)
     comet.compute(observer)
     print('R.A.', comet.ra, 'Decl.', comet.dec)
+    print('T {0._epoch_p}'.format(comet))
     sky_position(comet)
     print('Magnitude: {0.mag:.1f} Elongation:{0.elong}'.format(comet))
     print('Constellation', ephem.constellation(comet)[1])
-    print('Distance: Sun={0.sun_distance:.3f} Earth={0.earth_distance:.3f}'.format(comet))
+    print('Distance: Sun={0.sun_distance:.4f} Earth={0.earth_distance:.4f}'.format(comet))
     earth_distance = comet.earth_distance * MILES_PER_AU
     print('{:,.0f} miles from Earth'.format(earth_distance))
+    """ The distance values are only changing daily. There must be
+        some sort of step calculation here that I don't know about.
+        This is different from the Moon.
+    """
 
 if __name__ == '__main__':
     observer = ephem.city(CITY)
