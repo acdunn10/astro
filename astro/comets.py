@@ -70,7 +70,7 @@ def where_is(name, elements, observer):
     sky_position(comet)
     print('Magnitude: {0.mag:.1f} Elongation:{0.elong}'.format(comet))
     print('Constellation', ephem.constellation(comet)[1])
-    print('Distance: Sun={0.sun_distance:.4f} Earth={0.earth_distance:.4f}'.format(comet))
+    print('Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(comet))
     earth_distance = comet.earth_distance * MILES_PER_AU
     print('{:,.0f} miles from Earth'.format(earth_distance))
     """ The distance values are only changing daily. There must be
