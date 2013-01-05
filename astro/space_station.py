@@ -11,10 +11,10 @@ import requests
 import time
 import itertools
 import collections
-
+from . import astro_path
 
 PASSES = 10
-SOURCE = os.path.expanduser('~/.astro-space-station.txt')
+SOURCE = astro_path('space-station.txt')
 URL = 'http://celestrak.com/NORAD/elements/stations.txt'
 
 SatPass = collections.namedtuple('SatPass',

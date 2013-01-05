@@ -11,11 +11,11 @@ import requests
 import time
 import itertools
 import collections
-from . import CITY, MILES_PER_AU
+from . import CITY, MILES_PER_AU, astro_path
 from math import degrees
 
 # A place to locally save Comet elements
-SOURCE = os.path.expanduser('~/.astro-comets.txt')
+SOURCE = astro_path('comets.txt')
 URL = 'http://www.minorplanetcenter.net/iau/Ephemerides/Comets/Soft03Cmt.txt'
 
 NAMES = (
