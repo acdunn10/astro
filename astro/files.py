@@ -1,3 +1,4 @@
+""" A place to store calculated and requested data"""
 import os
 
 def _astro():
