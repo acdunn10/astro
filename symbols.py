@@ -22,6 +22,7 @@ names = ('DEGREE SIGN', 'BLACK SUN WITH RAYS',
          'PLUTO', 'COMET', 'ASCENDING NODE', 'DESCENDING NODE',
          'CONJUNCTION', 'OPPOSITION', )
 
-for name in names:
-    c = unicodedata.lookup(name)
-    print(c, unicodedata.name(c), 'repr=', repr(c), 'ord=', ord(c))
+if __name__ == '__main__':
+    for name in names:
+        c = unicodedata.lookup(name)
+        print("{} {:6d} {:6X} {}".format(c, ord(c), ord(c), unicodedata.name(c)))
