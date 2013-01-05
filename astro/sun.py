@@ -9,9 +9,27 @@ import operator
 from .sorted_collection import SortedCollection
 import json
 from . import CITY, astro_path
+import logging
+from bisect import bisect_left, bisect_right
+
+logger = logging.getLogger(__name__)
+
+def date_to_minutes(date):
+    return int(date * 1440)
 
 class SunEvent(collections.namedtuple('SunEvent', 'date event')):
-    def display(self):
+    """ Remembers a rising, setting or twilight event.
+        We need key because at different times, the event time
+        calculations can be very slightly different. This is
+        because they are calculated by iterating until close enough.
+        Our key property rounds to the nearest minute, which is
+        plenty close enough.
+    """
+    @property
+    def key(self):
+        return date_to_minutes(self.date)
+
+    def __str__(self):
         return '{:%I:%M %p %a} {}'.format(
             ephem.localtime(self.date), self.event)
 
@@ -25,42 +43,56 @@ twilights = [
 riseset = Horizon('Rise or Set', ephem.degrees('-0:34'))
 
 
-class EventsCollection:
+class EventsCollection(SortedCollection):
     source_name = 'sun-rise-set.json'
 
-    def __init__(self):
-        self.events = SortedCollection(key=operator.attrgetter('date'))
+    def __init__(self, sun, observer, date):
+        """ Initialize the collection, possibly from data
+            previously saved, then update with the specified date.
+        """
+        super().__init__(key=operator.attrgetter('key'))
         path = astro_path(self.source_name)
         if os.path.exists(path):
             with open(path) as f:
                 evlist = json.load(f)
                 for ev in evlist:
-                    self.events.insert(
-                        SunEvent(
-                            ephem.date(ev['date']), ev['event']))
-
-    def find(self, sun, observer):
-        date = observer.date
-        retry = 5  # in case we get stuck in a loop
-        while retry > 0:
-            try:
-                return (self.events.find_lt(date),
-                        self.events.find_gt(date))
-            except ValueError:
-                print("Loading events")
-                retry -= 1
-                for ev in get_sun_events(sun, observer, date):
-                    self.events.insert(ev)
-                self.write()
-        assert False, "Oops"
+                    self.insert(SunEvent(
+                            ephem.date(ev['date']),
+                            ev['event']))
+            logger.debug("Loaded {} events from source".format(len(self)))
+        self.update(sun, observer, date)
 
     def write(self):
+        "Save the collection for later use"
         path = astro_path(self.source_name)
-        print(self.events[0]._asdict())
-        evlist = [ev._asdict() for ev in self.events]
-        print("Writing", len(evlist), "events.")
+        evlist = [ev._asdict() for ev in self]
         with open(path, 'w') as f:
             json.dump(evlist, f, indent=2)
+        logger.debug("{} events written".format(len(evlist)))
+
+    def update(self, sun, observer, date):
+        "Update with new times as needed"
+        need_to_write = False
+        for ev in get_sun_events(sun, observer, date):
+            try:
+                self.find(ev.key)
+                pass
+            except ValueError:
+                self.insert(ev)
+                logger.debug("{} insert: {}".format(self._key(ev), ev))
+                need_to_write = True
+        """ Remove an older event if we have one. There might be
+            more than one, but we'll eventually get them all.
+        """
+        try:
+            event = self.find_lt(ephem.date(date - 2))
+            self.remove(event)
+            need_to_write = True
+        except ValueError:
+            pass
+        if need_to_write:
+            self.write()
+
 
 def get_sun_events(sun, observer, date):
     observer.pressure = 0
@@ -79,25 +111,30 @@ def get_sun_events(sun, observer, date):
                 'Evening {0.name}'.format(twi))
 
 
-
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.WARNING, handler=logging.StreamHandler())
+    date = ephem.now()
     observer = ephem.city(CITY)
+    observer.date = date
     sun = ephem.Sun(observer)  # ☼
+    az, alt = sun.az, sun.alt  # grab the current data
 
-    events = EventsCollection()
-    before, after = events.find(sun, observer)
-    print(before.display(), end=' ')
-    if sun.alt > 0:
-        up_or_down = '⬆' if sun.az <= ephem.degrees('180') else '⬇'
-        print('☼ {}°{} {}°⇔ '.format(sun.alt, up_or_down, sun.az), end='')
-    elif sun.alt >= ephem.degrees('-6'):
-        print('Civil twilight', sun.alt, end='')
-    elif sun.alt >= ephem.degrees('-12'):
-        print('Nautical twilight', sun.alt, end='')
-    elif sun.alt >= ephem.degrees('-18'):
-        print('Astronomical twilight', sun.alt, end='')
+    events = EventsCollection(sun, observer, date)
+    key = date_to_minutes(date)
+    before = events.find_lt(key)
+    after = events.find_ge(key)
+    print(before, end=' ')
+    if alt > 0:
+        up_or_down = '⬆' if az <= ephem.degrees('180') else '⬇'
+        print('☼ {}°{} {}°⇔ '.format(alt, up_or_down, az), end='')
+    elif alt >= ephem.degrees('-6'):
+        print('Civil', alt, end='')
+    elif alt >= ephem.degrees('-12'):
+        print('Nautical', alt, end='')
+    elif alt >= ephem.degrees('-18'):
+        print('Astronomical', alt, end='')
     else:
-        print("It's dark out there. {}° ⇔".format(sun.az))
-    print(after.display())
+        print("It's dark out there. {}° ⇔".format(az))
+    print(after)
 
-    #print(ephem.now() - events.events[0].date)
+
