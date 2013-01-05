@@ -6,37 +6,44 @@ import ephem
 import itertools
 import collections
 
-MAX_ANGLE = ephem.degrees('20')
+MAX_ANGLE = ephem.degrees('45')
 
-AngleBetween = collections.namedtuple('AngleBetween', 'p1 p2 angle')
+class Separation(collections.namedtuple('Separation', 'p1 p2 angle')):
+    def __str__(self):
+        return "{0.angle}° {0.p1.symbol} {0.p1.body.name} ⇔ {0.p2.symbol} {0.p2.body.name}".format(self)
+
+class Body(collections.namedtuple('Body', 'symbol body')):
+    def separation_from(self, other):
+        return Separation(self, other,
+            ephem.separation(self.body, other.body))
+
 
 if __name__ == '__main__':
-    BODIES = (
-        ('☽', ephem.Moon()),
-        ('☿', ephem.Mercury()),
-        ('♀', ephem.Venus()),
-        ('♂', ephem.Mars()),
-        ('♃', ephem.Jupiter()),
-        ('♄', ephem.Saturn())
+    bodies = (
+        Body('☽', ephem.Moon()),
+        Body('☿', ephem.Mercury()),
+        Body('♀', ephem.Venus()),
+        Body('♂', ephem.Mars()),
+        Body('♃', ephem.Jupiter()),
+        Body('♄', ephem.Saturn())
     )
 
-    now = ephem.now()
-    for symbol, body in BODIES:
-        body.compute()
+    for body in bodies:
+        body.body.compute()
 
-    bodies = (body for symbol, body in BODIES)
-    angles = []
-    for a, b in itertools.combinations(bodies, 2):
-        separation = ephem.separation(a, b)
-        if separation < MAX_ANGLE:
-            angles.append(AngleBetween(a, b, separation))
+    angles = [
+        a.separation_from(b)
+        for a, b in itertools.combinations(bodies, 2)
+        ]
     angles.sort(key=lambda x:x.angle)
-    later = now + ephem.hour
+    later = ephem.now() + ephem.hour
     for i in angles:
-        i.p1.compute(later)
-        i.p2.compute(later)
-        newsep = ephem.separation(i.p1, i.p2)
-        closer = i.angle > newsep
-        print(i.angle, i.p1.name, i.p2.name, 'closer' if closer else 'further')
+        if i.angle > MAX_ANGLE:
+            break
+        i.p1.body.compute(later)
+        i.p2.body.compute(later)
+        newsep = ephem.separation(i.p1.body, i.p2.body)
+        s = '⬇ closer' if i.angle > newsep else '⬆ further'
+        print("{} {}".format(i, s))
 
 
