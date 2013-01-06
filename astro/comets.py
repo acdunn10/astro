@@ -11,7 +11,7 @@ import requests
 import time
 import itertools
 import collections
-from . import CITY, miles_from_au, astro_path
+from . import CITY, miles_from_au, astro_path, AstroData
 from math import degrees
 
 # A place to locally save Comet elements
@@ -42,8 +42,20 @@ def get_comet_elements():
             comets[name] = line.strip()
     return (last_modified, comets)
 
-def sky_position(body, observer):
+class CometData(AstroData):
     symbol = '☄'
+
+    @property
+    def display_distance(self):
+        s = [self.symbol]
+        distance_change = "⬆" if self.receding else "⬇"
+        s.append(' {0.earth_distance:,.0f}{1} miles, {0.mph:,.0f}mph'.format(
+            self, distance_change))
+        return ' '.join(s)
+
+
+
+def sky_position(body, observer):
     if body.alt > 0:
         az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
         up_or_down = '⬆' if az <= 180 else '⬇'
@@ -61,25 +73,31 @@ def sky_position(body, observer):
     s = fmt.format('Set', setting, degrees(float(body.az)))
     print('{} {}   {} {}'.format(symbol, r, symbol, s))
 
-def where_is(name, elements, observer):
-    print("Where is", name)
+def where_is(name, elements):
+    now = ephem.now()
     comet = ephem.readdb(elements)
-    comet.compute(observer)
-    print('R.A.', comet.ra, 'Decl.', comet.dec)
-    print('T {0._epoch_p}'.format(comet))
-    sky_position(comet, observer)
-    print('Magnitude: {0.mag:.1f} Elongation:{0.elong}'.format(comet))
-    print('Constellation', ephem.constellation(comet)[1])
+    comet.compute(now)
+    print('Comet {}:  R.A. {}   Decl. {}   T {}'.format(name,
+        comet.ra, comet.dec, comet._epoch_p))
+    print('{1}, Mag {0.mag:.1f} Elong {0.elong}°'.format(comet,
+        ephem.constellation(comet)[1]))
     print('Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(comet))
-    earth_distance = miles_from_au(comet.earth_distance)
-    print('{:,.0f} miles from Earth'.format(earth_distance))
-    """ The distance values are only changing daily. There must be
-        some sort of step calculation here that I don't know about.
-        This is different from the Moon.
-    """
+    obj = CometData()
+    obj.earth_distance = miles_from_au(comet.earth_distance)
+    comet.compute(ephem.date(now + ephem.hour))
+    moved = miles_from_au(comet.earth_distance) - obj.earth_distance
+    obj.receding = moved > 0
+    obj.mph = abs(moved)
+    print(obj.display_distance)
+    observer = ephem.city(CITY)
+    observer.date = now
+    comet.compute(observer)
+    obj.az, obj.alt = comet.az, comet.alt
+    obj.calculate_rise_and_set(comet, observer)
+    print(obj.sky_position)
+    print(obj.rise_and_set)
 
 def main():
-    observer = ephem.city(CITY)
     if not os.path.exists(SOURCE):
         print('Requesting comet data from minorplanetcenter.net ...')
         save_comet_elements()
@@ -90,7 +108,7 @@ def main():
         len(comets), elements_age))
     for name in comets:
         if name in NAMES:
-            where_is(name, comets[name], observer)
+            where_is(name, comets[name])
     if elements_age >= 7.0:
         print("Requesting new comet data due to age")
         save_comet_elements()
