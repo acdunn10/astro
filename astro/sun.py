@@ -111,7 +111,7 @@ def get_sun_events(sun, observer, date):
                 'Evening {0.name}'.format(twi))
 
 
-if __name__ == '__main__':
+def main():
     logging.basicConfig(level=logging.WARNING, handler=logging.StreamHandler())
     date = ephem.now()
     observer = ephem.city(CITY)
@@ -137,4 +137,6 @@ if __name__ == '__main__':
         print("It's dark out there. {}° ⇔".format(az))
     print(after)
 
+if __name__ == '__main__':
+    main()
 

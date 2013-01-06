@@ -1,5 +1,10 @@
+from .sun import main as sun_main
+from .planets import main as planets_main
+from .angles import main as angles_main
+from .comets import main as comets_main
 
 if __name__ == '__main__':
-    print("Run the individual modules, e.g.",
-          "python -m astro.moon\n"
-          "Eventually we should do more here.")
+    sun_main()
+    planets_main()
+    angles_main()
+    comets_main()

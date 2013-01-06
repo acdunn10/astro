@@ -17,7 +17,7 @@ def format_position(symbol, body):
     return '{:10} {} {:.0f}°⇔ {:.0f}°{}'.format(body.name, symbol, az, alt, up_or_down)
 
 
-def calculate(symbol, body):
+def calculate(symbol, body, observer):
     """
         Calculate the appropriate rising and setting time. We'll
         calculate tomorrow's time if the body is not currently
@@ -38,7 +38,7 @@ def calculate(symbol, body):
     print('{:10} {} {}   {} {}'.format(body.name, symbol, r, symbol, s))
 
 
-if __name__ == '__main__':
+def main():
     observer = ephem.city(CITY)
 
     PLANETS = (
@@ -54,4 +54,7 @@ if __name__ == '__main__':
             print(format_position(symbol, body))
 
     for symbol, body in PLANETS:
-        calculate(symbol, body)
+        calculate(symbol, body, observer)
+
+if __name__ == '__main__':
+    main()

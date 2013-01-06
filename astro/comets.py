@@ -42,7 +42,7 @@ def get_comet_elements():
             comets[name] = line.strip()
     return (last_modified, comets)
 
-def sky_position(body):
+def sky_position(body, observer):
     symbol = '☄'
     if body.alt > 0:
         az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
@@ -67,7 +67,7 @@ def where_is(name, elements, observer):
     comet.compute(observer)
     print('R.A.', comet.ra, 'Decl.', comet.dec)
     print('T {0._epoch_p}'.format(comet))
-    sky_position(comet)
+    sky_position(comet, observer)
     print('Magnitude: {0.mag:.1f} Elongation:{0.elong}'.format(comet))
     print('Constellation', ephem.constellation(comet)[1])
     print('Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(comet))
@@ -78,7 +78,7 @@ def where_is(name, elements, observer):
         This is different from the Moon.
     """
 
-if __name__ == '__main__':
+def main():
     observer = ephem.city(CITY)
     if not os.path.exists(SOURCE):
         print('Requesting comet data from minorplanetcenter.net ...')
@@ -95,3 +95,5 @@ if __name__ == '__main__':
         print("Requesting new comet data due to age")
         save_comet_elements()
 
+if __name__ == '__main__':
+    main()

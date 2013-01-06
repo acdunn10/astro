@@ -18,7 +18,7 @@ class Body(collections.namedtuple('Body', 'symbol body')):
             ephem.separation(self.body, other.body))
 
 
-if __name__ == '__main__':
+def main():
     bodies = (
         Body('☽', ephem.Moon()),
         Body('☿', ephem.Mercury()),
@@ -46,4 +46,6 @@ if __name__ == '__main__':
         s = '⬇ closer' if i.angle > newsep else '⬆ further'
         print("{} {}".format(i, s))
 
+if __name__ == '__main__':
+    main()
 
