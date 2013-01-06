@@ -126,17 +126,7 @@ def get_sun_data():
         elif obj.alt >= ephem.degrees('-18'):
             obj.twilight = 'Astronomical'
 
-    # Rise and Set
-    observer.pressure = 0
-    observer.horizon = '-0:34'
-    if obj.alt > 0:
-        obj.rise = observer.previous_rising(sun)
-        obj.az_rise = sun.az
-    else:
-        obj.rise = observer.next_rising(sun)
-        obj.az_rise = sun.az
-    obj.set = observer.next_setting(sun)
-    obj.az_set = sun.az
+    obj.calculate_rise_and_set(sun, observer)
 
     return obj
 

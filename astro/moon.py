@@ -45,18 +45,7 @@ def get_moon_data():
     earth_moon_distance(obj)
     young_and_old_moons(obj)
 
-    # Rise and Set
-    observer.pressure = 0
-    observer.horizon = '-0:34'
-    if obj.alt > 0:
-        obj.rise = observer.previous_rising(moon)
-        obj.az_rise = moon.az
-    else:
-        obj.rise = observer.next_rising(moon)
-        obj.az_rise = moon.az
-    obj.set = observer.next_setting(moon)
-    obj.az_set = moon.az
-
+    obj.calculate_rise_and_set(moon, observer)
     return obj
 
 def main():
