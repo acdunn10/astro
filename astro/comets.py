@@ -11,7 +11,7 @@ import requests
 import time
 import itertools
 import collections
-from . import CITY, MILES_PER_AU, astro_path
+from . import CITY, miles_from_au, astro_path
 from math import degrees
 
 # A place to locally save Comet elements
@@ -71,7 +71,7 @@ def where_is(name, elements, observer):
     print('Magnitude: {0.mag:.1f} Elongation:{0.elong}'.format(comet))
     print('Constellation', ephem.constellation(comet)[1])
     print('Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(comet))
-    earth_distance = comet.earth_distance * MILES_PER_AU
+    earth_distance = miles_from_au(comet.earth_distance)
     print('{:,.0f} miles from Earth'.format(earth_distance))
     """ The distance values are only changing daily. There must be
         some sort of step calculation here that I don't know about.

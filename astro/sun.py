@@ -8,7 +8,7 @@ import collections
 import operator
 from .sorted_collection import SortedCollection
 import json
-from . import CITY, astro_path
+from . import CITY, astro_path, SunData
 import logging
 from bisect import bisect_left, bisect_right
 
@@ -111,32 +111,61 @@ def get_sun_events(sun, observer, date):
                 'Evening {0.name}'.format(twi))
 
 
-def main():
-    logging.basicConfig(level=logging.WARNING, handler=logging.StreamHandler())
+def get_sun_data():
     date = ephem.now()
     observer = ephem.city(CITY)
     observer.date = date
-    sun = ephem.Sun(observer)  # ☼
-    az, alt = sun.az, sun.alt  # grab the current data
+    sun = ephem.Sun(observer)
+    obj = SunData(az=sun.az, alt=sun.alt)
 
-    events = EventsCollection(sun, observer, date)
-    key = date_to_minutes(date)
-    before = events.find_lt(key)
-    after = events.find_ge(key)
-    print(before, end=' ')
-    if alt > 0:
-        up_or_down = '⬆' if az <= ephem.degrees('180') else '⬇'
-        print('☼ {}°{} {}°⇔ '.format(alt, up_or_down, az), end='')
-    elif alt >= ephem.degrees('-6'):
-        print('Civil', alt, end='')
-    elif alt >= ephem.degrees('-12'):
-        print('Nautical', alt, end='')
-    elif alt >= ephem.degrees('-18'):
-        print('Astronomical', alt, end='')
+    if obj.alt < 0:
+        if obj.alt >= ephem.degrees('-6'):
+            obj.twilight = 'Civil'
+        elif obj.alt >= ephem.degrees('-12'):
+            obj.twilight = 'Nautical'
+        elif obj.alt >= ephem.degrees('-18'):
+            obj.twilight = 'Astronomical'
+
+    # Rise and Set
+    observer.pressure = 0
+    observer.horizon = '-0:34'
+    if obj.alt > 0:
+        obj.rise = observer.previous_rising(sun)
+        obj.az_rise = sun.az
     else:
-        print("It's dark out there. {}° ⇔".format(az))
-    print(after)
+        obj.rise = observer.next_rising(sun)
+        obj.az_rise = sun.az
+    obj.set = observer.next_setting(sun)
+    obj.az_set = sun.az
+
+    return obj
+
+#     events = EventsCollection(sun, observer, date)
+#     key = date_to_minutes(date)
+#     before = events.find_lt(key)
+#     after = events.find_ge(key)
+#     print(before, end=' ')
+#     if alt > 0:
+#         up_or_down = '⬆' if az <= ephem.degrees('180') else '⬇'
+#         print('☼ {}°{} {}°⇔ '.format(alt, up_or_down, az), end='')
+#     elif alt >= ephem.degrees('-6'):
+#         print('Civil', alt, end='')
+#     elif alt >= ephem.degrees('-12'):
+#         print('Nautical', alt, end='')
+#     elif alt >= ephem.degrees('-18'):
+#         print('Astronomical', alt, end='')
+#     else:
+#         print("It's dark out there. {}° ⇔".format(az))
+#     print(after)
+
+def main():
+    obj = get_sun_data()
+    print(obj.sky_position)
+    print(obj.rise_and_set)
+    if obj.show_twilight: print(obj.show_twilight)
+
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.WARNING, handler=logging.StreamHandler())
     main()
 

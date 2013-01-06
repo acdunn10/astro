@@ -15,7 +15,7 @@ import os
 import ephem
 from math import degrees
 import itertools
-from . import CITY, MILES_PER_AU
+from . import CITY, miles_from_au
 
 
 observer = ephem.city(CITY)
@@ -81,13 +81,13 @@ def moon_info():
             yield "☽ Old Moon {:.1f} hours".format(moon_age)
     # where is the moon now
     moon.compute(now)
-    distance = moon.earth_distance * MILES_PER_AU
+    distance = miles_from_au(moon.earth_distance)
     phase = moon.phase
     # where is the Moon one minute later
     now += ephem.minute
     moon.compute(now)
     ps = "⬆" if moon.phase > phase else "⬇"
-    moved = (moon.earth_distance * MILES_PER_AU) - distance
+    moved = miles_from_au(moon.earth_distance) - distance
     ds = "⬆" if moved > 0 else "⬇"
     mph = abs(60 * moved)
     yield "☽Phase {:.2f}%{}, {:,.1f} miles, {}{:.1f}mph".format(
