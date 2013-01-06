@@ -35,6 +35,23 @@ class AstroData:
             ephem.localtime(self.set), degrees(self.az_set)))
         return ' '.join(s)
 
+    def calculate_rise_and_set(self, body, observer):
+        observer.pressure = 0
+        if isinstance(body, (ephem.Sun, ephem.Moon)):
+            observer.horizon = '-0:34'
+        else:
+            observer.horizon = '0'
+
+        if self.alt > 0:
+            self.rise = observer.previous_rising(body)
+            self.az_rise = body.az
+        else:
+            self.rise = observer.next_rising(body)
+            self.az_rise = body.az
+        self.set = observer.next_setting(body)
+        self.az_set = body.az
+
+
 class SunData(AstroData):
     symbol = '☼'
 
