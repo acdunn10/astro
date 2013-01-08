@@ -22,6 +22,7 @@ URL = 'http://www.minorplanetcenter.net/iau/Ephemerides/Comets/Soft03Cmt.txt'
 
 NAMES = (
     'C/2012 S1 (ISON)',
+    'C/2011 L4 (PANSTARRS)',
     )
 
 def save_comet_elements():
@@ -61,7 +62,7 @@ def where_is(name, elements):
     comet = ephem.readdb(elements)
     comet.compute(now)
     obj = CometData()
-    print('{} Comet {}:  R.A. {}   Decl. {}'.format(obj.symbol, name,
+    print('{} Comet {}:  R.A. {}   Decl. {}'.format(5 * obj.symbol, name,
         _(comet.ra, HMS), _(comet.dec)))
     print('{} T {}'.format(obj.symbol, comet._epoch_p))
     print('{} {}, Mag {:.1f} Elong {}'.format(obj.symbol,
@@ -79,7 +80,8 @@ def where_is(name, elements):
     comet.compute(observer)
     obj.az, obj.alt = comet.az, comet.alt
     obj.calculate_rise_and_set(comet, observer)
-    print(obj.sky_position)
+    if obj.sky_position:
+        print(obj.sky_position)
     print(obj.rise_and_set)
 
 def main():
