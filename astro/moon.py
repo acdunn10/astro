@@ -50,7 +50,8 @@ def get_moon_data():
 
 def main():
     obj = get_moon_data()
-    print(obj.sky_position(magnitude=False))
+    if obj.alt > 0:
+        print(obj.sky_position(magnitude=False))
     print(obj.phase_and_distance())
     print(obj.rise_and_set())
     if obj.age <= 72:

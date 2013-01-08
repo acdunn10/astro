@@ -77,5 +77,5 @@ class MoonData(AstroData):
     def young_and_old(self):
         if self.age <= 72:
             which = 'young' if self.young else 'old'
-            return '{0.symbol} {1} Moon {0.young:.1f} hours'.format(
+            return '{0.symbol} {1} Moon {0.age:.1f} hours'.format(
                 self, which)
