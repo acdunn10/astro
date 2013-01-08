@@ -9,52 +9,34 @@
 import ephem
 from math import degrees
 from . import CITY
+from .data import AstroData
 
 
-def format_position(symbol, body):
-    az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
-    up_or_down = '⬆' if az <= 180 else '⬇'
-    return '{:10} {} {:.0f}°⇔ {:.0f}°{}'.format(body.name, symbol, az, alt, up_or_down)
-
-
-def calculate(symbol, body, observer):
-    """
-        Calculate the appropriate rising and setting time. We'll
-        calculate tomorrow's time if the body is not currently
-        above the horizon.
-    """
-    if body.alt > 0:
-        az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
-        rising_method = observer.previous_rising
-        srise = 'Rose'
-    else:
-        rising_method = observer.next_rising
-        srise = 'Rise'
-    fmt = '{} {:%I:%M %p %a} {:.0f}°⇔'
-    rising = ephem.localtime(rising_method(body))
-    r = fmt.format(srise, rising, degrees(float(body.az)))
-    setting = ephem.localtime(observer.next_setting(body))
-    s = fmt.format('Set', setting, degrees(float(body.az)))
-    print('{:10} {} {}   {} {}'.format(body.name, symbol, r, symbol, s))
-
+PLANETS = (
+    ('☿', ephem.Mercury),
+    ('♀', ephem.Venus),
+    ('♂', ephem.Mars),
+    ('♃', ephem.Jupiter),
+    ('♄', ephem.Saturn)
+)
 
 def main():
+    date = ephem.now()
     observer = ephem.city(CITY)
+    observer.date = date
+    planets = []
+    for symbol, planet in PLANETS:
+        planet = planet(observer)
+        obj = AstroData(az=planet.az, alt=planet.alt, mag=planet.mag,
+            symbol='{} {}'.format(symbol, planet.name))
+        obj.calculate_rise_and_set(planet, observer)
+        planets.append(obj)
 
-    PLANETS = (
-        ('☿', ephem.Mercury(observer)),
-        ('♀', ephem.Venus(observer)),
-        ('♂', ephem.Mars(observer)),
-        ('♃', ephem.Jupiter(observer)),
-        ('♄', ephem.Saturn(observer))
-    )
-
-    for symbol, body in PLANETS:
-        if body.alt > 0:
-            print(format_position(symbol, body))
-
-    for symbol, body in PLANETS:
-        calculate(symbol, body, observer)
+    for obj in planets:
+        if obj.alt > 0:
+            print(obj.sky_position(magnitude=True))
+    for obj in planets:
+        print(obj.rise_and_set())
 
 if __name__ == '__main__':
     main()

@@ -11,7 +11,8 @@ import requests
 import time
 import itertools
 import collections
-from . import CITY, miles_from_au, astro_path, AstroData
+from . import CITY, miles_from_au, astro_path
+from .data import AstroData
 from .utils import format_angle as _
 from .utils import HMS
 from math import degrees
@@ -37,12 +38,13 @@ def get_comet_elements():
         s = f.readline().strip()
         t = time.strptime(s[7:], "%d %b %Y %H:%M:%S %Z")
         last_modified = time.mktime(t)
-        comets = {}
+        comets = []
         for line in f:
             if line.startswith('#'):
                 continue
             name = line.split(',', 1)[0]
-            comets[name] = line.strip()
+            if name in NAMES:
+                comets.append(ephem.readdb(line.strip()))
     return (last_modified, comets)
 
 class CometData(AstroData):
@@ -57,16 +59,15 @@ class CometData(AstroData):
         return ' '.join(s)
 
 
-def where_is(name, elements):
+def where_is(comet):
     now = ephem.now()
-    comet = ephem.readdb(elements)
     comet.compute(now)
-    obj = CometData()
-    print('{} Comet {}:  R.A. {}   Decl. {}'.format(5 * obj.symbol, name,
+    obj = CometData(mag=comet.mag)
+    print('{} Comet {}:  R.A. {}   Decl. {}'.format(5 * obj.symbol, comet.name,
         _(comet.ra, HMS), _(comet.dec)))
     print('{} T {}'.format(obj.symbol, comet._epoch_p))
-    print('{} {}, Mag {:.1f} Elong {}'.format(obj.symbol,
-        ephem.constellation(comet)[1], comet.mag, _(comet.elong)))
+    print('{} {}, Elong {}'.format(obj.symbol,
+        ephem.constellation(comet)[1], _(comet.elong)))
     print('{1.symbol} Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(
         comet, obj))
     obj.earth_distance = miles_from_au(comet.earth_distance)
@@ -80,9 +81,9 @@ def where_is(name, elements):
     comet.compute(observer)
     obj.az, obj.alt = comet.az, comet.alt
     obj.calculate_rise_and_set(comet, observer)
-    if obj.sky_position:
-        print(obj.sky_position)
-    print(obj.rise_and_set)
+    if obj.alt > 0:
+        print(obj.sky_position(magnitude=True))
+    print(obj.rise_and_set())
 
 def main():
     if not os.path.exists(SOURCE):
@@ -91,11 +92,9 @@ def main():
     assert os.path.exists(SOURCE), "Expected to have comet elements"
     last_modified, comets = get_comet_elements()
     elements_age = (time.mktime(time.gmtime()) - last_modified) / 86400
-    print('{} comets. Last modified: {:.1f} days ago'.format(
-        len(comets), elements_age))
-    for name in comets:
-        if name in NAMES:
-            where_is(name, comets[name])
+    print('Comet database last modified: {:.1f} days ago'.format(elements_age))
+    for comet in comets:
+        where_is(comet)
     if elements_age >= 7.0:
         print("Requesting new comet data due to age")
         save_comet_elements()

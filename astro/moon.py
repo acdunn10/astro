@@ -4,7 +4,8 @@
 """
 import ephem
 import itertools
-from . import CITY, miles_from_au, MoonData
+from . import CITY, miles_from_au
+from .data import MoonData
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,15 +14,15 @@ def young_and_old_moons(obj):
     "A bit more useful information about the Moon"
     now = ephem.now()
     previous_new = ephem.previous_new_moon(now)
-    moon_age = 24 * (now - previous_new)
+    obj.age = 24 * (now - previous_new)
     obj.young = obj.old = None
-    if moon_age <= 72:
-        obj.young = moon_age
+    if obj.age <= 72:
+        obj.young = True
     else:
         next_new = ephem.next_new_moon(now)
-        moon_age = 24 * (next_new - now)
-        if moon_age <= 72:
-            obj.old = moon_age
+        obj.age = 24 * (next_new - now)
+        if obj.age <= 72:
+            obj.young = False
 
 
 def earth_moon_distance(obj):
@@ -44,16 +45,16 @@ def get_moon_data():
     obj = MoonData(az=moon.az, alt=moon.alt)
     earth_moon_distance(obj)
     young_and_old_moons(obj)
-
     obj.calculate_rise_and_set(moon, observer)
     return obj
 
 def main():
     obj = get_moon_data()
-    print(obj.sky_position)
-    print(obj.phase_and_distance)
-    print(obj.rise_and_set)
-    if obj.young_and_old: print(obj.young_and_old)
+    print(obj.sky_position(magnitude=False))
+    print(obj.phase_and_distance())
+    print(obj.rise_and_set())
+    if obj.age <= 72:
+        print(obj.young_and_old())
 
 
 """

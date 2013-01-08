@@ -8,9 +8,9 @@ import collections
 import operator
 from .sorted_collection import SortedCollection
 import json
-from . import CITY, astro_path, SunData
+from . import CITY, astro_path
+from .data import SunData
 import logging
-from bisect import bisect_left, bisect_right
 
 logger = logging.getLogger(__name__)
 
@@ -117,17 +117,7 @@ def get_sun_data():
     observer.date = date
     sun = ephem.Sun(observer)
     obj = SunData(az=sun.az, alt=sun.alt)
-
-    if obj.alt < 0:
-        if obj.alt >= ephem.degrees('-6'):
-            obj.twilight = 'Civil'
-        elif obj.alt >= ephem.degrees('-12'):
-            obj.twilight = 'Nautical'
-        elif obj.alt >= ephem.degrees('-18'):
-            obj.twilight = 'Astronomical'
-
     obj.calculate_rise_and_set(sun, observer)
-
     return obj
 
 #     events = EventsCollection(sun, observer, date)
@@ -150,9 +140,10 @@ def get_sun_data():
 
 def main():
     obj = get_sun_data()
-    print(obj.sky_position)
-    print(obj.rise_and_set)
-    if obj.show_twilight: print(obj.show_twilight)
+    print(obj.sky_position(always_show=True, magnitude=False))
+    if obj.alt < 0:
+        print(obj.twilight())
+    print(obj.rise_and_set())
 
 
 if __name__ == '__main__':

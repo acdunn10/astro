@@ -5,7 +5,7 @@
 import ephem
 import itertools
 import collections
-from . import AstroData
+from .data import AstroData
 
 MAX_ANGLE = ephem.degrees('20')
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux', 'Regulus')
