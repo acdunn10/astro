@@ -18,7 +18,7 @@ names = ('DEGREE SIGN', 'BLACK SUN WITH RAYS',
          'BLACK STAR', 'WHITE STAR',
          'SUN', 'MERCURY', 'FEMALE SIGN',
          'EARTH', 'MALE SIGN', 'JUPITER',
-         'SATURN', 'URANUS', 'NEPTUNE', 'NEPTUNE',
+         'SATURN', 'URANUS', 'NEPTUNE',
          'PLUTO', 'COMET', 'ASCENDING NODE', 'DESCENDING NODE',
          'CONJUNCTION', 'OPPOSITION', )
 

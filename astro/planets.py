@@ -17,7 +17,9 @@ PLANETS = (
     ('♀', ephem.Venus),
     ('♂', ephem.Mars),
     ('♃', ephem.Jupiter),
-    ('♄', ephem.Saturn)
+    ('♄', ephem.Saturn),
+    ('♅', ephem.Uranus),
+    ('♆', ephem.Neptune),
 )
 
 def main():
@@ -28,6 +30,7 @@ def main():
     for symbol, planet in PLANETS:
         planet = planet(observer)
         obj = AstroData(az=planet.az, alt=planet.alt, mag=planet.mag,
+            constellation=ephem.constellation(planet)[1],
             symbol='{} {}'.format(symbol, planet.name))
         obj.calculate_rise_and_set(planet, observer)
         planets.append(obj)

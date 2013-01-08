@@ -10,11 +10,13 @@ class AstroData:
             setattr(self, k, v)
 
     def sky_position(self, always_show=False, magnitude=True):
-        "Depends on symbol, az and alt"
+        "Depends on symbol, az and alt, also mag and constellation"
         if magnitude and hasattr(self, 'mag'):
             smag = 'Mag. {:.2f}'.format(self.mag)
         else:
             smag = ''
+        if hasattr(self, 'constellation'):
+            smag = smag + '•' + self.constellation
         if self.alt > 0 or always_show:
             up_or_down = '⬆' if self.az <= ephem.degrees('180') else '⬇'
             return '{} {}{} {}⇔ {}'.format(

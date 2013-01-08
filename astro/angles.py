@@ -6,6 +6,7 @@ import ephem
 import itertools
 import collections
 from .data import AstroData
+from .utils import format_angle as _
 
 MAX_ANGLE = ephem.degrees('20')
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux', 'Regulus')
@@ -13,7 +14,7 @@ STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux', 'Regulus')
 
 class Separation(collections.namedtuple('Separation', 'p1 p2 angle')):
     def __str__(self):
-        return "{0.angle}° {0.p1.symbol} {0.p1.body.name} ⇔ {0.p2.symbol} {0.p2.body.name}".format(self)
+        return "{1} {0.p1.symbol} {0.p1.body.name} ⇔ {0.p2.symbol} {0.p2.body.name}".format(self, _(self.angle))
 
 class Body(collections.namedtuple('Body', 'symbol body')):
     def separation_from(self, other):

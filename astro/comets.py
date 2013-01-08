@@ -100,4 +100,19 @@ def main():
         save_comet_elements()
 
 if __name__ == '__main__':
-    main()
+    print("Looking for bright comets")
+    with open(SOURCE) as f:
+        s = f.readline().strip()
+        t = time.strptime(s[7:], "%d %b %Y %H:%M:%S %Z")
+        last_modified = time.mktime(t)
+        comets = []
+        for line in f:
+            if line.startswith('#'):
+                continue
+            comets.append(ephem.readdb(line.strip()))
+    print(len(comets))
+    now = ephem.now()
+    for comet in comets:
+        comet.compute(now)
+        if comet.mag < 12:
+            print(comet.name, comet.mag)
