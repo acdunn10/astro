@@ -12,6 +12,8 @@ import time
 import itertools
 import collections
 from . import CITY, miles_from_au, astro_path, AstroData
+from .utils import format_angle as _
+from .utils import HMS
 from math import degrees
 
 # A place to locally save Comet elements
@@ -54,35 +56,18 @@ class CometData(AstroData):
         return ' '.join(s)
 
 
-
-def sky_position(body, observer):
-    if body.alt > 0:
-        az, alt = [degrees(float(i)) for i in (body.az, body.alt)]
-        up_or_down = '⬆' if az <= 180 else '⬇'
-        print('{} {:3.0f}°⇔  {:.0f}°{}'.format(
-            symbol, az, alt, up_or_down))
-        rising_method = observer.previous_rising
-        srise = 'Rose'
-    else:
-        rising_method = observer.next_rising
-        srise = 'Rise'
-    fmt = '{} {:%I:%M %p %a} {:.0f}°⇔'
-    rising = ephem.localtime(rising_method(body))
-    r = fmt.format(srise, rising, degrees(float(body.az)))
-    setting = ephem.localtime(observer.next_setting(body))
-    s = fmt.format('Set', setting, degrees(float(body.az)))
-    print('{} {}   {} {}'.format(symbol, r, symbol, s))
-
 def where_is(name, elements):
     now = ephem.now()
     comet = ephem.readdb(elements)
     comet.compute(now)
-    print('Comet {}:  R.A. {}   Decl. {}   T {}'.format(name,
-        comet.ra, comet.dec, comet._epoch_p))
-    print('{1}, Mag {0.mag:.1f} Elong {0.elong}°'.format(comet,
-        ephem.constellation(comet)[1]))
-    print('Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(comet))
     obj = CometData()
+    print('{} Comet {}:  R.A. {}   Decl. {}'.format(obj.symbol, name,
+        _(comet.ra, HMS), _(comet.dec)))
+    print('{} T {}'.format(obj.symbol, comet._epoch_p))
+    print('{} {}, Mag {:.1f} Elong {}'.format(obj.symbol,
+        ephem.constellation(comet)[1], comet.mag, _(comet.elong)))
+    print('{1.symbol} Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(
+        comet, obj))
     obj.earth_distance = miles_from_au(comet.earth_distance)
     comet.compute(ephem.date(now + ephem.hour))
     moved = miles_from_au(comet.earth_distance) - obj.earth_distance

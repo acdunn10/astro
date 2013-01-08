@@ -3,6 +3,7 @@
 import ephem
 from math import degrees
 from .files import astro_path
+from .utils import format_angle as _
 
 CITY = 'Columbus'  # my default city
 
@@ -21,8 +22,8 @@ class AstroData:
         if self.alt <= 0:
             return ''
         up_or_down = '⬆' if self.az <= ephem.degrees('180') else '⬇'
-        return '{0.symbol} {0.alt}°{1} {0.az}°⇔ '.format(
-            self, up_or_down)
+        return '{} {}{} {}⇔ '.format(
+            self.symbol, _(self.alt), up_or_down, _(self.az))
 
     @property
     def rise_and_set(self):

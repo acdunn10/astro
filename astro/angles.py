@@ -1,6 +1,6 @@
 # -*- coding: utf8
 """
-    Calculate the angles among the interesting planets and Moon.
+    Calculate the angles among the interesting planets, Moon and stars.
 """
 import ephem
 import itertools
@@ -8,7 +8,7 @@ import collections
 from . import AstroData
 
 MAX_ANGLE = ephem.degrees('20')
-STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux','Regulus')
+STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux', 'Regulus')
 
 
 class Separation(collections.namedtuple('Separation', 'p1 p2 angle')):

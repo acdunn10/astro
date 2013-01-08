@@ -27,20 +27,17 @@ def generate_rise_set(body, observer, start_date=None, ending_date=None):
         if ending_date is not None and observer.date >= ending_date:
             raise StopIteration
 
-class Degrees:
-    """Add °, ’ and ” characters to an angle"""
-    DMS = """° ’ ”""".split()
-    def __init__(self, degrees):
-        self.value = ephem.degrees(degrees)
 
-    def __str__(self):
-        return ''.join(itertools.chain(*zip(str(self.value).split(':'), self.DMS)))
+DMS = """° ’ ”""".split()
+HMS = """h ,m ,s""".split(',')
 
-#     def __format__(self, format_spec):
-#         "We ignore the format_spec, wonder if it could be used for something"
-#         return ''.join(itertools.chain(*zip(str(self.value).split(':'), DMS)))
+def format_angle(angle, spec=DMS):
+    "Formatting degrees and hours"
+    return ''.join(itertools.chain(*zip(str(angle).split(':'), spec)))
 
 
 if __name__ == '__main__':
-    print(Degrees('125:38:29'))
+    _ = format_angle
+    print(_(ephem.degrees('125:38:29')))
+    print(_(ephem.hours('5.872'), HMS))
 
