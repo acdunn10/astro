@@ -141,8 +141,7 @@ def get_sun_data():
 def main():
     obj = get_sun_data()
     print(obj.sky_position(always_show=True, magnitude=False))
-    if obj.alt < 0:
-        print(obj.twilight())
+    print(obj.twilight())
     print(obj.rise_and_set())
 
 

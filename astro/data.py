@@ -59,6 +59,8 @@ class SunData(AstroData):
             s = 'Nautical'
         elif self.alt >= ephem.degrees('-18'):
             s = 'Astronomical'
+        else:
+            return ''
         return '{} {} Twilight, {}'.format(self.symbol,
             s, _(self.alt))
 
