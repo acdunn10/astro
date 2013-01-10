@@ -7,13 +7,13 @@ import itertools
 import collections
 import operator
 from copy import copy
+from math import degrees
 from astro import astro_path, miles_from_au
 from astro.utils import format_angle as _
 
 PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
            ephem.Jupiter, ephem.Saturn,
            ephem.Uranus, ephem.Neptune)
-INNER_PLANETS = ('Mercury', 'Venus', 'Mars')
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux', 'Regulus')
 COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
 MAX_ANGLE = ephem.degrees('20')
@@ -40,6 +40,9 @@ class Distance:
         self.trend = moved < 0
         self.mph = abs(moved)
 
+Event = collections.namedtuple('Event', 'row date msg attr')
+
+
 def calculate(w):
     date = ephem.now()
 
@@ -52,7 +55,6 @@ def calculate(w):
 
     all_bodies = [sun, moon] + planets + stars + comets
     except_stars = [sun, moon] + planets + comets
-    inner_planets = [i for i in planets if i.name in INNER_PLANETS]
 
     # Calculate angular separation between planetary bodies
     angles = []
@@ -63,7 +65,7 @@ def calculate(w):
     angles.sort(key=operator.attrgetter('angle'))
     for row, sep in enumerate(angles):
         color = 1 if sep.trend() else 2
-        w.addstr(row + 15, 0,
+        w.addstr(row + 13, 0,
             "{1} {0.body1.name} ⇔ {0.body2.name}".format(
                 sep, _(sep.angle)),
             curses.color_pair(color))
@@ -72,38 +74,51 @@ def calculate(w):
     # Calculate distance and velocity for objects of interest
     distances = [
         Distance(date, body)
-        for body in [sun, moon] + inner_planets + comets
+        for body in [sun, moon] + planets + comets
     ]
     distances.sort(key=operator.attrgetter('mph'))
     for row, obj in enumerate(distances):
         color = 1 if obj.trend else 2
-        w.addstr(row + 15, 45,
-            "{0.mph:7,.0f} mph {0.miles:11,.0f} {0.body.name}".format(obj),
+        w.addstr(row + 13, 44,
+            "{0.mph:7,.0f} mph {0.miles:13,.0f} {0.body.name}".format(obj),
             curses.color_pair(color))
 
     observer = ephem.city('Columbus')
-    observer.date = date
+    events = []
     for row, body in enumerate(except_stars):
+        observer.date = date
         body.compute(observer)
         if body.alt > 0:
-            mag = "Mag {0.mag}".format(body) if body.name not in ('Sun', 'Moon') else ""
+            mag = "Mag {0.mag:.1f}".format(body) if body.name not in ('Sun', 'Moon') else ""
+            b = copy(body)
             if body.set_time > date:
                 set = body.set_time
+                observer.date = set
+                b.compute(observer)
+                az = b.az
             else:
-                set = observer.next_setting(copy(body), start=body.rise_time)
-            w.addstr(row, 0,
-                '{} {} {} {} Set {:%I:%M %p %a}'.format(
+                set = observer.next_setting(b, start=body.rise_time)
+                az = b.az
+            msg = '{} {} {} {} Set {:%I:%M %p %a} {:.0f}°'.format(
                     body.name, _(body.az), _(body.alt), mag,
-                    ephem.localtime(set)))
+                    ephem.localtime(set), degrees(az))
+            events.append(Event(row, set, msg, 0))
         else:
+            b = copy(body)
             if body.rise_time > date:
                 rise = body.rise_time
+                observer.date = rise
+                b.compute(observer)
+                az = b.az
             else:
-                rise = observer.next_rising(copy(body), start=body.set_time)
-            w.addstr(row, 0,
-                '{0.name} Rise {1:%I:%M %p %a}'.format(body,
-                    ephem.localtime(rise)),
-                curses.color_pair(2))
+                rise = observer.next_rising(b, start=body.set_time)
+                az = b.az
+            msg = '{0.name} Rise {1:%I:%M %p %a} {2:.0f}°'.format(body,
+                ephem.localtime(rise), degrees(az))
+            events.append(Event(row, rise, msg, curses.color_pair(2)))
+    events.sort(key=operator.attrgetter('date'))
+    for row, event in enumerate(events):
+        w.addstr(row, 0, event.msg, event.attr)
         w.clrtoeol()
 
 def get_comets():
