@@ -31,7 +31,7 @@ def main():
         planet = planet(observer)
         obj = AstroData(az=planet.az, alt=planet.alt, mag=planet.mag,
             constellation=ephem.constellation(planet)[1],
-            symbol='{} {}'.format(symbol, planet.name))
+            symbol=symbol, name=planet.name)
         obj.calculate_rise_and_set(planet, observer)
         planets.append(obj)
 

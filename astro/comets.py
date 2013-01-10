@@ -62,12 +62,9 @@ class CometData(AstroData):
 def where_is(comet):
     now = ephem.now()
     comet.compute(now)
-    obj = CometData(mag=comet.mag)
-    print('{} Comet {}:  R.A. {}   Decl. {}'.format(5 * obj.symbol, comet.name,
-        _(comet.ra, HMS), _(comet.dec)))
+    obj = CometData(name=comet.name, mag=comet.mag,
+        constellation=ephem.constellation(comet)[1])
     print('{} T {}'.format(obj.symbol, comet._epoch_p))
-    print('{} {}, Elong {}'.format(obj.symbol,
-        ephem.constellation(comet)[1], _(comet.elong)))
     print('{1.symbol} Distance: Sun={0.sun_distance:.4f} AU Earth={0.earth_distance:.4f} AU'.format(
         comet, obj))
     obj.earth_distance = miles_from_au(comet.earth_distance)

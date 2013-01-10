@@ -5,22 +5,27 @@ from .utils import format_angle as _
 
 class AstroData:
     symbol = '★'
+    name = ''
+    always_show_position = False
+    show_magnitude = True
+
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
     def sky_position(self, always_show=False, magnitude=True):
         "Depends on symbol, az and alt, also mag and constellation"
-        if magnitude and hasattr(self, 'mag'):
+        if self.show_magnitude and hasattr(self, 'mag'):
             smag = 'Mag. {:.2f}'.format(self.mag)
         else:
             smag = ''
         if hasattr(self, 'constellation'):
             smag = smag + '•' + self.constellation
-        if self.alt > 0 or always_show:
+        if self.alt > 0 or self.always_show_position:
             up_or_down = '⬆' if self.az <= ephem.degrees('180') else '⬇'
-            return '{} {}{} {}⇔ {}'.format(
-                self.symbol, _(self.alt), up_or_down, _(self.az), smag)
+            return '{} {} {}{} {}⇔ {}'.format(
+                self.symbol, self.name, _(self.alt), up_or_down,
+                _(self.az), smag)
         return ''
 
     def calculate_rise_and_set(self, body, observer):
@@ -40,7 +45,7 @@ class AstroData:
 
     def rise_and_set(self):
         "Depends on calculate_rise_and_set having been called"
-        s = [self.symbol]
+        s = ["{0.symbol} {0.name}".format(self)]
         s.append('Rose' if self.alt > 0 else 'Rise')
         s.append('{:%I:%M %p %a} {:.0f}°⇔'.format(
             ephem.localtime(self.rise), degrees(self.az_rise)))
@@ -51,21 +56,15 @@ class AstroData:
 
 class SunData(AstroData):
     symbol = '☼'
+    name = 'Sun'
+    always_show_position = True
+    show_magnitude = False
 
-    def twilight(self):
-        if self.alt >= ephem.degrees('-6'):
-            s = 'Civil'
-        elif self.alt >= ephem.degrees('-12'):
-            s = 'Nautical'
-        elif self.alt >= ephem.degrees('-18'):
-            s = 'Astronomical'
-        else:
-            return ''
-        return '{} {} Twilight, {}'.format(self.symbol,
-            s, _(self.alt))
 
 class MoonData(AstroData):
     symbol = '☽'
+    name = 'Moon'
+    show_magnitude = False
 
     def phase_and_distance(self):
         s = [self.symbol]
