@@ -1,2 +1,4 @@
 *.pyc
 tags
+site-packages.tags
+__pycache__
