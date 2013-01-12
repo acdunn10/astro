@@ -10,3 +10,4 @@ def _astro():
 
 def astro_path(name):
     return os.path.join(_astro(), name)
+astro_config = astro_path

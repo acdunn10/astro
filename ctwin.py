@@ -20,25 +20,14 @@ def make_all_bodies():
     return [sun, moon] + planets + comets + stars
 
 
-class HorizonEvents:
-    def __init__(self):
-        events = []
-        observer = ephem.city('Columbus')
-        observer.date = ephem.now()
-        for body in make_all_bodies():
-            body.compute(observer)
-            events.append({'name': body.name, 'rise': body.rise_time})
-            events.append({'name': body.name, 'set': body.set_time})
-        self.events = events
-
-
 class Event:
-    def __init__(self, field, value):
+    def __init__(self, field, date, value):
         self.field = field
+        self.date = date
         self.value = value
 
     def __str__(self):
-        return "{0.field} {0.value}".format(self)
+        return "{0.field} {0.date}".format(self)
 
 
 class Where:
@@ -46,41 +35,54 @@ class Where:
         self.body = body.copy()
         self.observer = observer
         self.events = [
-            Event(name, getattr(body, name))
-            for name in ('rise_time', 'transit_time', 'set_time')
+            Event(name, getattr(body, name), getattr(body, azalt))
+            for name, azalt in (('rise_time', 'rise_az'), ('transit_time', 'transit_alt'), ('set_time', 'set_az'))
             ]
-        self.events.sort(key=operator.attrgetter('value'))
+        self.events.sort(key=operator.attrgetter('date'))
+        for ev in self.events:
+            print(ev)
+
+    earlier = {
+        'rise_time': ('setting', 'set', 'set_az'),
+        'transit_time': ('rising', 'rise', 'rise_az'),
+        'set_time': ('transit', 'transit', 'transit_alt'),
+        }
+
+    def insert_earlier_event(self):
+        event = self.earlier_or_later(self.events[0],
+            self.earlier, 'previous')
+        self.events.insert(0, event)
+
+    later = {
+        'set_time': ('rising', 'rise', 'rise_az'),
+        'rise_time': ('transit', 'transit', 'transit_alt'),
+        'transit_time': ('setting', 'set', 'set_az'),
+        }
+
+    def append_later_event(self):
+        event = self.earlier_or_later(self.events[-1],
+            self.later, 'next')
+        self.events.append(event)
+
+    def earlier_or_later(self, ev, table, method_prefix):
+        method_suffix, name_prefix, azalt = table[ev.field]
+        method_name = '{}_{}'.format(method_prefix, method_suffix)
+        method = getattr(self.observer, method_name)
+        date = method(self.body, start=ev.date)
+        field_name = '{}_time'.format(name_prefix)
+        value = getattr(self.body, azalt)
+        return Event(field_name, date, value)
+
 
     def __call__(self, date):
-        "We could get stuck here for nearly forever..."
-        while date < self.events[0].value:
-            ev = self.events[0]
-            print("Searching before {}, oldest is {}".format(date, ev))
-            if ev.field == 'rise_time':
-                when = self.observer.previous_setting(self.body, start=ev.value)
-                self.events.insert(0, Event('set_time', when))
-            elif ev.field == 'transit_time':
-                when = self.observer.previous_rising(self.body, start=ev.value)
-                self.events.insert(0, Event('rise_time', when))
-            elif ev.field == 'set_time':
-                when = self.observer.previous_transit(self.body, start=ev.value)
-                self.events.insert(0, Event('transit_time', when))
-        while date > self.events[-1].value:
-            ev = self.events[-1]
-            print("Searching after {}, newest is {}".format(date, ev))
-            if ev.field == 'set_time':
-                when = self.observer.next_rising(self.body, start=ev.value)
-                self.events.append(Event('rise_time', when))
-            elif ev.field == 'rise_time':
-                when = self.observer.next_transit(self.body, start=ev.value)
-                self.events.append(Event('transit_time', when))
-            elif ev.field == 'transit_time':
-                when = self.observer.next_setting(self.body, start=ev.value)
-                self.events.append(Event('set_time', when))
+        while date < self.events[0].date:
+            self.insert_earlier_event()
+        while date > self.events[-1].date:
+            self.append_later_event()
         for a, b in pairwise(self.events):
-            if a.value <= date <= b.value:
-                print("[{:2d}] {} Before={} After={}".format(
-                    len(self.events), date, a, b))
+            if a.date <= date <= b.date:
+#                 print("[{:2d}] {} Before={} After={}".format(
+#                     len(self.events), date, a, b))
                 return (a, b)
         assert False,"Oops"
 
@@ -91,8 +93,8 @@ if __name__ == '__main__':
     where = Where(s, o)
     date = ephem.now()
     for i in range(30):
-        where(ephem.Date(date +  i * ephem.hour))
-
+        a, b = where(ephem.Date(date +  i ))
+        print("{0.field} {0.date} {0.value}".format(b))
 
 
 
