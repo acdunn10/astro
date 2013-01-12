@@ -67,7 +67,8 @@ class Calculate:
         w.addstr(0, 0, "{:%H:%M:%S}".format(
             ephem.localtime(self.date)))
         w.addch(0, 30, default)
-        arg = self.observer if default == 'p' else self.date
+        w.addstr(0, 40, 'admrpq')
+        arg = self.observer if default in ('r', 'p', 'm') else self.date
         [body.compute(arg) for body in self.all_bodies]
         if default == 'a':
             self.update_angles(w)
@@ -75,6 +76,10 @@ class Calculate:
             self.update_distance(w)
         elif default == 'p':
             self.sky_position(w)
+        elif default == 'r':
+            self.rise_set(w)
+        elif default == 'm':
+            self.update_moon(w)
         self.default = default
 
     def update_angles(self, w):
@@ -112,7 +117,9 @@ class Calculate:
     def sky_position(self, w):
         w.addstr(2, 0, 'Azimuth and Altitude')
         for row, b in enumerate(sorted(self.except_stars, key=operator.attrgetter('alt'), reverse=True)):
-            if b.alt < 0:
+            if b.name == 'Sun':
+                color = 3
+            elif b.alt < 0:
                 color = 0
             else:
                 color = 1 if b.az < ephem.degrees('180') else 2
@@ -120,6 +127,30 @@ class Calculate:
                 "{0.name} {0.az} {0.alt}".format(b),
                 curses.color_pair(color))
 
+    def update_moon(self, w):
+        w.addstr(2, 0, 'Moon')
+
+    def rise_set(self, w):
+        w.addstr(2, 0, 'Rise, Transit and Set')
+        events = []
+        for b in self.except_stars:
+            for fieldname, azalt in zip(FIELDS, AZALT):
+                date = getattr(b, fieldname)
+                if date >= self.date:
+                    events.append({'key': fieldname.split('_')[0],
+                                   'name': b.name,
+                                   'date': ephem.localtime(date),
+                                   'azalt': getattr(b, azalt)})
+        for row, ev in enumerate(sorted(events, key=operator.itemgetter('date'))):
+            if ev['key'] == 'transit':
+                color = 1
+            elif ev['key'] == 'set':
+                color = 2
+            else:
+                color = 0
+            w.addstr(row + 3, 0,
+                "{name:16} {key:8} {date:%H:%M:%S} {azalt}".format(**ev),
+                curses.color_pair(color))
 class Distance:
     def __init__(self, date, body):
         self.body = body
@@ -136,7 +167,7 @@ def main(w):
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
-    w.timeout(1000)
+    w.timeout(2000)
     default = 'p'
     calculate = Calculate(default)
 
@@ -149,6 +180,10 @@ def main(w):
                 default = 'd'
             elif ch == ord('p'):
                 default = 'p'
+            elif ch == ord('r'):
+                default = 'r'
+            elif ch == ord('m'):
+                default = 'm'
             elif ch == ord('q'):
                 break
             calculate.update(w, default)
