@@ -21,81 +21,63 @@ def make_all_bodies():
 
 
 class Event:
-    def __init__(self, field, date, value):
+    def __init__(self, name, field, date, value):
+        self.name = name
         self.field = field
         self.date = date
         self.value = value
 
     def __str__(self):
-        return "{0.field} {0.date}".format(self)
+        return "{0.name} {0.field} {0.date} {0.value}".format(self)
 
-
-class Where:
-    def __init__(self, body, observer):
-        self.body = body.copy()
-        self.observer = observer
         self.events = [
             Event(name, getattr(body, name), getattr(body, azalt))
             for name, azalt in (('rise_time', 'rise_az'), ('transit_time', 'transit_alt'), ('set_time', 'set_az'))
             ]
         self.events.sort(key=operator.attrgetter('date'))
-        for ev in self.events:
-            print(ev)
 
-    earlier = {
-        'rise_time': ('setting', 'set', 'set_az'),
-        'transit_time': ('rising', 'rise', 'rise_az'),
-        'set_time': ('transit', 'transit', 'transit_alt'),
-        }
+FIELDS = ('rise_time', 'transit_time', 'set_time')
+AZALT = ('rise_az', 'transit_alt', 'set_az')
 
-    def insert_earlier_event(self):
-        event = self.earlier_or_later(self.events[0],
-            self.earlier, 'previous')
-        self.events.insert(0, event)
+# if __name__ == '__main__':
+#     o = ephem.city('Columbus')
+#     bodies = make_all_bodies()
+#     events = []
+#     for b in bodies:
+#         b.compute(o)
+#         for fname, azalt in zip(FIELDS, AZALT):
+#             events.append(Event(b.name, fname,
+#                 getattr(b, fname), getattr(b, azalt)))
+#     events.sort(key=operator.attrgetter('date'))
+#     for ev in events:
+#         if ev.date >= ephem.now():
+#             print(ev)
 
-    later = {
-        'set_time': ('rising', 'rise', 'rise_az'),
-        'rise_time': ('transit', 'transit', 'transit_alt'),
-        'transit_time': ('setting', 'set', 'set_az'),
-        }
-
-    def append_later_event(self):
-        event = self.earlier_or_later(self.events[-1],
-            self.later, 'next')
-        self.events.append(event)
-
-    def earlier_or_later(self, ev, table, method_prefix):
-        method_suffix, name_prefix, azalt = table[ev.field]
-        method_name = '{}_{}'.format(method_prefix, method_suffix)
-        method = getattr(self.observer, method_name)
-        date = method(self.body, start=ev.date)
-        field_name = '{}_time'.format(name_prefix)
-        value = getattr(self.body, azalt)
-        return Event(field_name, date, value)
+class Calculate:
 
 
-    def __call__(self, date):
-        while date < self.events[0].date:
-            self.insert_earlier_event()
-        while date > self.events[-1].date:
-            self.append_later_event()
-        for a, b in pairwise(self.events):
-            if a.date <= date <= b.date:
-#                 print("[{:2d}] {} Before={} After={}".format(
-#                     len(self.events), date, a, b))
-                return (a, b)
-        assert False,"Oops"
+
+
+def main(w):
+    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    w.timeout(1000)
+    calculate = Calculate()
+
+    while True:
+        try:
+            calculate.update(w)
+            curses.curs_set(0)
+            w.refresh()
+            ch = w.getch()
+            if ch != -1:
+                break
+        except KeyboardInterrupt:
+            break
 
 if __name__ == '__main__':
-    o = ephem.city('Columbus')
-    s = ephem.Sun()  #Comets()['C/2012 S1 (ISON)']
-    s.compute(o)
-    where = Where(s, o)
-    date = ephem.now()
-    for i in range(30):
-        a, b = where(ephem.Date(date +  i ))
-        print("{0.field} {0.date} {0.value}".format(b))
-
-
+    curses.wrapper(main)
 
 
