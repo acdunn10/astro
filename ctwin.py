@@ -1,7 +1,7 @@
 import ephem
 from astro import Comets
+from astro.utils import pairwise
 import operator
-from astro.sorted_collection import SortedCollection
 
 PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
            ephem.Jupiter, ephem.Saturn,
@@ -9,16 +9,14 @@ PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux', 'Regulus')
 COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
 
-def make_comets():
-    comets = Comets()
-    return [comets[name] for name in COMETS]
 
 def make_all_bodies():
     sun = ephem.Sun()
     moon = ephem.Moon()
     planets = [planet() for planet in PLANETS]
     stars = [ephem.star(name) for name in STARS]
-    comets = make_comets()
+    comet_dct = Comets()
+    comets = [comet_dct[name] for name in COMETS]
     return [sun, moon] + planets + comets + stars
 
 
@@ -47,62 +45,53 @@ class Where:
     def __init__(self, body, observer):
         self.body = body.copy()
         self.observer = observer
-        self.events = SortedCollection(key=operator.attrgetter('value'))
-        self.events.insert(Event('rise_time', body.rise_time))
-        self.events.insert(Event('transit_time', body.transit_time))
-        self.events.insert(Event('set_time', body.set_time))
-        print('Where - initial list')
-        for ev in self.events:
-            print(ev)
+        self.events = [
+            Event(name, getattr(body, name))
+            for name in ('rise_time', 'transit_time', 'set_time')
+            ]
+        self.events.sort(key=operator.attrgetter('value'))
 
     def __call__(self, date):
         "We could get stuck here for nearly forever..."
-        while True:
-            try:
-                before = self.events.find_lt(date)
-                break
-            except ValueError:
-                ev = self.events[0]
-                print("Searching before {}, oldest is {}".format(date, ev))
-                if ev.field == 'rise_time':
-                    when = self.observer.previous_setting(self.body, start=ev.value)
-                    self.events.insert(Event('set_time', when))
-                elif ev.field == 'transit_time':
-                    when = self.observer.previous_rising(self.body, start=ev.value)
-                    self.events.insert(Event('rise_time', when))
-                elif ev.field == 'set_time':
-                    when = self.observer.previous_transit(self.body, start=ev.value)
-                    self.events.insert(Event('transit_time', when))
-
-        while True:
-            try:
-                after = self.events.find_ge(date)
-                break
-            except ValueError:
-                ev = self.events[-1]
-                print("Searching after {}, newest is {}".format(date, ev))
-                if ev.field == 'set_time':
-                    when = self.observer.next_rising(self.body, start=ev.value)
-                    self.events.insert(Event('rise_time', when))
-                elif ev.field == 'rise_time':
-                    when = self.observer.next_transit(self.body, start=ev.value)
-                    self.events.insert(Event('transit_time', when))
-                elif ev.field == 'transit_time':
-                    when = self.observer.next_setting(self.body, start=ev.value)
-                    self.events.insert(Event('set_time', when))
-
-        print("[{:2d}] {} Before={} After={}".format(
-            len(self.events), date, before, after))
-
+        while date < self.events[0].value:
+            ev = self.events[0]
+            print("Searching before {}, oldest is {}".format(date, ev))
+            if ev.field == 'rise_time':
+                when = self.observer.previous_setting(self.body, start=ev.value)
+                self.events.insert(0, Event('set_time', when))
+            elif ev.field == 'transit_time':
+                when = self.observer.previous_rising(self.body, start=ev.value)
+                self.events.insert(0, Event('rise_time', when))
+            elif ev.field == 'set_time':
+                when = self.observer.previous_transit(self.body, start=ev.value)
+                self.events.insert(0, Event('transit_time', when))
+        while date > self.events[-1].value:
+            ev = self.events[-1]
+            print("Searching after {}, newest is {}".format(date, ev))
+            if ev.field == 'set_time':
+                when = self.observer.next_rising(self.body, start=ev.value)
+                self.events.append(Event('rise_time', when))
+            elif ev.field == 'rise_time':
+                when = self.observer.next_transit(self.body, start=ev.value)
+                self.events.append(Event('transit_time', when))
+            elif ev.field == 'transit_time':
+                when = self.observer.next_setting(self.body, start=ev.value)
+                self.events.append(Event('set_time', when))
+        for a, b in pairwise(self.events):
+            if a.value <= date <= b.value:
+                print("[{:2d}] {} Before={} After={}".format(
+                    len(self.events), date, a, b))
+                return (a, b)
+        assert False,"Oops"
 
 if __name__ == '__main__':
     o = ephem.city('Columbus')
-    s = Comets()['C/2012 S1 (ISON)']
+    s = ephem.Sun()  #Comets()['C/2012 S1 (ISON)']
     s.compute(o)
     where = Where(s, o)
     date = ephem.now()
     for i in range(30):
-        where(ephem.Date(date +  i))
+        where(ephem.Date(date +  i * ephem.hour))
 
 
 
