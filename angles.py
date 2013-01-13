@@ -35,8 +35,11 @@ def close_star_approaches(year=None):
                     print(date, body.name, star.name, sep)
 
 def current_separations():
-
+    stars_list = [ephem.star(name) for name in stars.keys()]
+    planets = [planet() for planet in PLANETS]
+    solar_system = [ephem.Moon()] + planets
     [body.compute() for body in solar_system + stars_list]
+    print(type(stars_list[0]))
     angles = []
     # Separations between solar system bodies and stars
     for body in solar_system:
@@ -54,6 +57,6 @@ def current_separations():
 
 
 if __name__ == '__main__':
-    #current_separations()
-    close_star_approaches()
+    current_separations()
+    #close_star_approaches()
 

@@ -18,19 +18,6 @@ COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
 MAX_ANGLE = ephem.degrees('20')
 ARROWS = "⬆⬇"  # these fancy arrows aren't showing up on curses
 
-SYMBOLS = {
-    'Sun': '☼',
-    'Moon': '☽',
-    'Mercury': '☿',
-    'Venus': '♀',
-    'Mars': '♂',
-    'Jupiter': '♃',
-    'Saturn': '♄',
-    'Uranus': '♅',
-    'Neptune': '♆',
-    '_comet': '☄',
-    '_star': '★',
-    }
 
 
 class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
