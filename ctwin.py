@@ -89,7 +89,7 @@ class Calculate:
             color = 1 if sep.trend() else 2
             try:
                 w.addstr(row + 3, 0,
-                    "{1} {2} {0.body1.name} ⇔ {3} {0.body2.name} ({4})".format(
+                    "{1:>12}  {2}  {0.body1.name} ⇔ {3} {0.body2.name} ({4})".format(
                         sep, _(sep.angle), get_symbol(sep.body1),
                         get_symbol(sep.body2),
                         ephem.constellation(sep.body2)[1]),
@@ -113,6 +113,7 @@ class Calculate:
         for row, body in enumerate(sorted(bodies, key=operator.attrgetter('alt'), reverse=True)):
             w.addstr(row + 3, 0, *format_sky_position(body))
             w.clrtoeol()
+        w.clrtobot()
 
     def update_moon(self, w):
         moon = ephem.Moon(self.date)
@@ -199,7 +200,7 @@ def format_rise_set(ev):
     else:
         color = 0
     return (
-        "{key:8} {date:%a %I:%M:%S %p} {symbol} {name} {azalt}°".format(**ev),
+        "{symbol} {date:%a %I:%M:%S %p} {key:^7} {name} {azalt}°".format(**ev),
         curses.color_pair(color)
         )
 
@@ -220,8 +221,8 @@ def format_sky_position(body):
     else:
         extra = ''
     return (
-        "{} {} {} {} {}".format(get_symbol(body), body.name,
-                                _(body.az), _(body.alt), extra),
+        "{} {:>12} {:>12} {} {}".format(get_symbol(body), _(body.alt),
+            _(body.az), body.name, extra),
         curses.color_pair(color)
         )
 
@@ -248,7 +249,7 @@ class Distance:
         #returns both the formatted string and the color
         color = 1 if self.trend else 2
         return (
-            "{0.mph:7,.0f} mph {0.miles:13,.0f} {1} {0.body.name}".format(
+            "{0.mph:8,.0f} mph {0.miles:13,.0f} {1} {0.body.name}".format(
                 self, get_symbol(self.body)),
             curses.color_pair(color)
             )
