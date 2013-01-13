@@ -139,6 +139,7 @@ class Calculate:
         observer = ephem.city(CITY)
         observer.date = self.date
         moon.compute(observer)
+        m2 = moon.copy()
         distance = miles_from_au(moon.earth_distance)
         observer.date = ephem.Date(self.date + ephem.hour)
         moon.compute(observer)
@@ -147,6 +148,9 @@ class Calculate:
         w.addstr(4, 0,
             'Observer distance: {:13,.0f} miles, {:+5.0f} mph'.format(
                 distance, moved), curses.color_pair(color))
+        w.addstr(5, 0, "Azimuth {}".format(_(m2.az)))
+        w.addstr(5, 30, "Altitude {}".format(_(m2.alt)))
+
 
     def calc_rise_set(self, base_date):
         self.observer.date = ephem.Date(base_date)
@@ -258,7 +262,7 @@ def main(w):
     try:
         default = sys.argv[1]
     except IndexError:
-        default = None
+        default = 'p'
     if default not in COMMANDS:
         default = 'p'
     calculate = Calculate(default)
