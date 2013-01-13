@@ -1,3 +1,4 @@
+import sys
 import operator
 import curses
 import itertools
@@ -7,13 +8,13 @@ from astro import Comets
 from astro.utils import pairwise
 from astro.utils import format_angle as _
 from astro import miles_from_au
-from astro import PLANETS, SYMBOLS
+from astro import PLANETS, SYMBOLS, CITY
 
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
 COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
-MAX_ANGLE = ephem.degrees('20')
-
+MAX_ANGLE = ephem.degrees('30')
+COMMANDS = 'admrp'
 
 FIELDS = ('rise_time', 'transit_time', 'set_time')
 AZALT = ('rise_az', 'transit_alt', 'set_az')
@@ -37,7 +38,7 @@ class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
 class Calculate:
     def __init__(self, default):
         self.default = default
-        self.observer = ephem.city('Columbus')
+        self.observer = ephem.city(CITY)
         self.sun = ephem.Sun()
         self.moon = ephem.Moon()
         self.planets = [planet() for planet in PLANETS]
@@ -50,6 +51,7 @@ class Calculate:
         self.rs = collections.defaultdict(list)
 
     def update(self, w, default):
+        self.maxrow = w.getmaxyx()[0]
         if default != self.default:
             w.erase()
         self.date = ephem.now()
@@ -57,7 +59,7 @@ class Calculate:
         w.addstr(0, 0, "{:%H:%M:%S} {:11.5f}".format(
             ephem.localtime(self.date), self.date))
         w.addch(0, 30, default)
-        w.addstr(0, 40, 'admrpq')
+        w.addstr(0, 40, COMMANDS)
         if default in 'pm':
             [body.compute(self.observer) for body in self.all_bodies]
         elif default in 'ad':
@@ -80,16 +82,20 @@ class Calculate:
             Separation(a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(self.all_bodies, 2)
             )
-        angles = filter(lambda x:x.angle < MAX_ANGLE, angles)
+        #angles = filter(lambda x:x.angle < MAX_ANGLE, angles)
         angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
         w.addstr(2, 0, 'Angular separation')
         for row, sep in enumerate(sorted(angles, key=operator.attrgetter('angle'))):
             color = 1 if sep.trend() else 2
-            w.addstr(row + 3, 0,
-                "{1} {2} {0.body1.name} ⇔ {3} {0.body2.name}".format(
-                    sep, _(sep.angle), get_symbol(sep.body1),
-                    get_symbol(sep.body2)),
-                curses.color_pair(color))
+            try:
+                w.addstr(row + 3, 0,
+                    "{1} {2} {0.body1.name} ⇔ {3} {0.body2.name} ({4})".format(
+                        sep, _(sep.angle), get_symbol(sep.body1),
+                        get_symbol(sep.body2),
+                        ephem.constellation(sep.body2)[1]),
+                    curses.color_pair(color))
+            except curses.error:
+                break
             w.clrtoeol()
 
     def update_distance(self, w):
@@ -109,7 +115,38 @@ class Calculate:
             w.clrtoeol()
 
     def update_moon(self, w):
-        w.addstr(2, 0, 'Moon')
+        moon = ephem.Moon(self.date)
+        # young or old (within 72 hours)
+        previous_new = ephem.previous_new_moon(self.date)
+        age = 24 * (self.date - previous_new)
+        msg = ''
+        if age <= 72:
+            msg = "Young: {:.1f} hours".format(age)
+        else:
+            next_new = ephem.next_new_moon(self.date)
+            age = 24 * (new_new - self.date)
+            if age <= 72:
+                msg = "Old: {:.1f} hours".format(age)
+        w.addstr(2, 0,
+            'Moon: Phase={0.moon_phase:.2%} {1}'.format(moon, msg))
+        distance = miles_from_au(moon.earth_distance)
+        moon.compute(ephem.Date(self.date + ephem.hour))
+        moved = miles_from_au(moon.earth_distance) - distance
+        color = 2 if moved > 0 else 1
+        w.addstr(3, 0,
+            'Earth distance:    {:13,.0f} miles, {:+5.0f} mph'.format(
+                distance, moved), curses.color_pair(color))
+        observer = ephem.city(CITY)
+        observer.date = self.date
+        moon.compute(observer)
+        distance = miles_from_au(moon.earth_distance)
+        observer.date = ephem.Date(self.date + ephem.hour)
+        moon.compute(observer)
+        moved = miles_from_au(moon.earth_distance) - distance
+        color = 2 if moved > 0 else 1
+        w.addstr(4, 0,
+            'Observer distance: {:13,.0f} miles, {:+5.0f} mph'.format(
+                distance, moved), curses.color_pair(color))
 
     def calc_rise_set(self, base_date):
         self.observer.date = ephem.Date(base_date)
@@ -141,9 +178,12 @@ class Calculate:
         w.addstr(2, 0, 'Rise, Transit and Set {:2d} {:4d}'.format(
             len(self.rs), len(events)))
         events.sort(key=operator.itemgetter('date'))
-        for row, ev in enumerate(events[:30]):
-            w.addstr(row + 3, 0, *format_rise_set(ev))
-            w.clrtoeol()
+        for row, ev in enumerate(events):
+            try:
+                w.addstr(row + 3, 0, *format_rise_set(ev))
+                w.clrtoeol()
+            except curses.error:
+                break
 
 def format_rise_set(ev):
     if ev['name'] == 'Sun':
@@ -215,7 +255,12 @@ def main(w):
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
     w.timeout(2000)
-    default = 'r'
+    try:
+        default = sys.argv[1]
+    except IndexError:
+        default = None
+    if default not in COMMANDS:
+        default = 'p'
     calculate = Calculate(default)
 
     while True:
@@ -241,20 +286,4 @@ def main(w):
 
 if __name__ == '__main__':
     curses.wrapper(main)
-#     c = Calculate('r')
-#     now = ephem.now()
-#     today = int(float(now))
-#     tomorrow = today + 1
-#     print(now, today, tomorrow, float(now))
-#     if today not in c.rs:
-#         c.calc_rise_set(today)
-#         print(len(c.rs))
-#     if tomorrow not in c.rs:
-#         c.calc_rise_set(tomorrow)
-#         print(len(c.rs))
-#     for key in (today, tomorrow):
-#         print('\n***', key, len(c.rs[key]))
-#         for ev in sorted(c.rs[key], key=operator.itemgetter('date')):
-#             print('{date:%H:%M:%S %a}'.format(**ev))
-
 

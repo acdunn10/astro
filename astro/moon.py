@@ -6,9 +6,7 @@ import ephem
 import itertools
 from . import CITY, miles_from_au
 from .data import MoonData
-import logging
 
-logger = logging.getLogger(__name__)
 
 def young_and_old_moons(obj):
     "A bit more useful information about the Moon"
@@ -58,7 +56,6 @@ def main():
         print(obj.young_and_old())
 
 
-"""
 def today():
     moon = ephem.Moon()
     observer = ephem.city(CITY)
@@ -74,15 +71,9 @@ def today():
         print('{} {:,.0f} {:,.0f} {} {}'.format(
             date, dist, odist, moon.az, moon.alt))
         date = ephem.date(date + 1 * ephem.minute)
-"""
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.WARNING, handler=logging.StreamHandler())
-    main()
-
-
-
-
-
+    #main()
+    today()
 
