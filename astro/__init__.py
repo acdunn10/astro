@@ -3,6 +3,10 @@
 import ephem
 from .comets import Comets
 
+PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
+           ephem.Jupiter, ephem.Saturn,
+           ephem.Uranus, ephem.Neptune)
+
 CITY = 'Columbus'  # my default city
 
 def miles_from_au(au):
