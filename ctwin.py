@@ -1,8 +1,10 @@
 import sys
+import os
 import operator
 import curses
 import itertools
 import collections
+import logging
 import ephem
 from astro import Comets
 from astro.utils import pairwise
@@ -10,11 +12,13 @@ from astro.utils import format_angle as _
 from astro import miles_from_au
 from astro import PLANETS, SYMBOLS, CITY
 
+logger = logging.getLogger(__name__)
+
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
 COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
 MAX_ANGLE = ephem.degrees('30')
-COMMANDS = 'admrp'
+COMMANDS = 'ademrp'
 
 FIELDS = ('rise_time', 'transit_time', 'set_time')
 AZALT = ('rise_az', 'transit_alt', 'set_az')
@@ -36,8 +40,8 @@ class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
         return ephem.separation(a, b) < self.angle
 
 class Calculate:
-    def __init__(self, default):
-        self.default = default
+    def __init__(self):
+        self.cmd = 'p'
         self.observer = ephem.city(CITY)
         self.sun = ephem.Sun()
         self.moon = ephem.Moon()
@@ -50,31 +54,35 @@ class Calculate:
         self.all_bodies = self.except_stars + self.stars
         self.rs = collections.defaultdict(list)
 
-    def update(self, w, default):
-        self.maxrow = w.getmaxyx()[0]
-        if default != self.default:
+    def compute(self):
+        [body.compute(self.date) for body in self.all_bodies]
+        return self
+
+    def compute_observer(self):
+        [body.compute(self.observer) for body in self.all_bodies]
+        return self
+
+    def update(self, w, cmd):
+        if cmd != self.cmd:
             w.erase()
         self.date = ephem.now()
         self.observer.date = self.date
         w.addstr(0, 0, "{:%H:%M:%S} {:11.5f}".format(
             ephem.localtime(self.date), self.date))
-        w.addch(0, 30, default)
         w.addstr(0, 40, COMMANDS)
-        if default in 'pm':
-            [body.compute(self.observer) for body in self.all_bodies]
-        elif default in 'ad':
-            [body.compute(self.date) for body in self.all_bodies]
-        if default == 'a':
-            self.update_angles(w)
-        elif default == 'd':
-            self.update_distance(w)
-        elif default == 'p':
-            self.sky_position(w)
-        elif default == 'r':
+        if cmd == 'a':
+            self.compute().update_angles(w)
+        elif cmd == 'd':
+            self.compute().update_distance(w)
+        elif cmd == 'p':
+            self.compute_observer().update_position(w)
+        elif cmd == 'r':
             self.rise_set(w)
-        elif default == 'm':
-            self.update_moon(w)
-        self.default = default
+        elif cmd == 'm':
+            self.compute().update_moon(w)
+        elif cmd == 'e':
+            self.compute().update_elongation(w)
+        self.cmd = cmd
 
     def update_angles(self, w):
         # Calculate angular separation between planetary bodies
@@ -98,6 +106,13 @@ class Calculate:
                 break
             w.clrtoeol()
 
+    def update_elongation(self, w):
+        w.addstr(2, 0, 'Elongation')
+        for row, body in enumerate(sorted(self.planets, key=operator.attrgetter('elong'))):
+            w.addstr(row + 3, 0,
+                "{} {:>13} {}".format(get_symbol(body), _(body.elong), body.name))
+            w.clrtoeol()
+
     def update_distance(self, w):
         # Calculate distance and velocity for objects of interest
         distances = (Distance(self.date, body) for body in self.except_stars)
@@ -106,7 +121,7 @@ class Calculate:
             w.addstr(row + 3, 0, *obj.format())
             w.clrtoeol()
 
-    def sky_position(self, w):
+    def update_position(self, w):
         w.addstr(2, 0, 'Azimuth and Altitude')
         #is_sun_or_is_up = lambda body:body.name == 'Sun' or body.alt > 0
         bodies = self.except_stars  #filter(is_sun_or_is_up, self.except_stars)
@@ -161,6 +176,7 @@ class Calculate:
 
 
     def calc_rise_set(self, base_date):
+        logger.info("calc_rise_set: {}".format(base_date))
         self.observer.date = ephem.Date(base_date)
         for body in self.except_stars:
             body.compute(self.observer)
@@ -267,35 +283,28 @@ def main(w):
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
     w.timeout(2000)
-    try:
-        default = sys.argv[1]
-    except IndexError:
-        default = 'p'
-    if default not in COMMANDS:
-        default = 'p'
-    calculate = Calculate(default)
+    calculate = Calculate()
 
+    cmd = 'p'
+    ord_commands = list(map(ord, COMMANDS))
+    logger.debug(str(ord_commands))
     while True:
         try:
             ch = w.getch()
-            if ch == ord('a'):
-                default = 'a'
-            elif ch == ord('d'):
-                default = 'd'
-            elif ch == ord('p'):
-                default = 'p'
-            elif ch == ord('r'):
-                default = 'r'
-            elif ch == ord('m'):
-                default = 'm'
-            elif ch == ord('q'):
+            logger.debug("getch(): {}".format(ch))
+            if ch == ord('q'):
                 break
-            calculate.update(w, default)
+            if ch in ord_commands:
+                cmd = bytes([ch]).decode()
+                logger.debug("Received cmd:{}".format(cmd))
+            calculate.update(w, cmd)
             curses.curs_set(0)
             w.refresh()
         except KeyboardInterrupt:
             break
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO,
+        filename=os.path.join(os.environ['VIRTUAL_ENV'], 'ctwin.log'))
     curses.wrapper(main)
 
