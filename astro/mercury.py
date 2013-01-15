@@ -25,7 +25,7 @@ def report(what, when):
             what, ephem.localtime(observer.date).date(),
             mercury.alt))
 
-if __name__ == '__main__':
+def main():
     mercury = ephem.Mercury()
     sun = ephem.Sun()
     observer = ephem.city(CITY)
@@ -35,4 +35,16 @@ if __name__ == '__main__':
     for info in generate_rise_set(sun, observer, start_date, finish_date):
         report("Morning", info.rise)
         report("Evening", info.set)
+
+def elongation():
+    mercury = ephem.Mercury()
+    d = ephem.Date('2009/9/20 9:00:00')
+    for m in range(120):
+        date = ephem.Date(d + m * ephem.minute)
+        mercury.compute(date)
+        print(date, mercury.elong)
+
+if __name__ == '__main__':
+    #main()
+    elongation()
 
