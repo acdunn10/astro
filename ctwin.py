@@ -12,7 +12,7 @@ from astro.utils import format_angle as _
 from astro import miles_from_au
 from astro import PLANETS, SYMBOLS, CITY
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('astro')
 
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
@@ -24,23 +24,10 @@ FIELDS = ('rise_time', 'transit_time', 'set_time')
 AZALT = ('rise_az', 'transit_alt', 'set_az')
 
 
-class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
-    def is_two_stars(self):
-        return all([isinstance(self.body1, ephem.FixedBody),
-                   isinstance(self.body2, ephem.FixedBody)])
-
-    def trend(self):
-        "Returns True if the two bodies are getting closer"
-        arrows = "UD" #
-        a = self.body1.copy()
-        b = self.body2.copy()
-        later = ephem.now() + ephem.hour
-        a.compute(later)
-        b.compute(later)
-        return ephem.separation(a, b) < self.angle
-
 class Calculate:
+    "Manage the display of data in the curses window"
     def __init__(self):
+        "Load up initial data, including the comets"
         self.cmd = 'p'
         self.observer = ephem.city(CITY)
         self.sun = ephem.Sun()
@@ -48,6 +35,7 @@ class Calculate:
         self.planets = [planet() for planet in PLANETS]
         self.stars = [ephem.star(name) for name in STARS]
         comet_dict = Comets()
+        logger.info("Comets last-modified: {}".format(comet_dict.last_modified))
         self.comets = [comet_dict[name] for name in COMETS]
         self.except_stars = [self.sun, self.moon] + \
                             self.planets + self.comets
@@ -55,16 +43,20 @@ class Calculate:
         self.rs = collections.defaultdict(list)
 
     def compute(self):
+        "Compute data for all bodies, not using the Observer"
         [body.compute(self.date) for body in self.all_bodies]
         return self
 
     def compute_observer(self):
+        "Compute with the Observer"
         [body.compute(self.observer) for body in self.all_bodies]
         return self
 
     def update(self, w, cmd):
+        "Update the window to display the specified info"
         if cmd != self.cmd:
             w.erase()
+            logger.debug("New command: {}".format(cmd))
         self.date = ephem.now()
         self.observer.date = self.date
         w.addstr(0, 0, "{:%H:%M:%S} {:11.5f}".format(
@@ -77,7 +69,7 @@ class Calculate:
         elif cmd == 'p':
             self.compute_observer().update_position(w)
         elif cmd == 'r':
-            self.rise_set(w)
+            self.update_rise_set(w)
         elif cmd == 'm':
             self.compute().update_moon(w)
         elif cmd == 'e':
@@ -85,7 +77,7 @@ class Calculate:
         self.cmd = cmd
 
     def update_angles(self, w):
-        # Calculate angular separation between planetary bodies
+        "Display the closest angular separations"
         angles = (
             Separation(a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(self.all_bodies, 2)
@@ -94,27 +86,24 @@ class Calculate:
         angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
         w.addstr(2, 0, 'Angular separation')
         for row, sep in enumerate(sorted(angles, key=operator.attrgetter('angle'))):
-            color = 1 if sep.trend() else 2
             try:
-                w.addstr(row + 3, 0,
-                    "{1:>12}  {2}  {0.body1.name} ⇔ {3} {0.body2.name} ({4})".format(
-                        sep, _(sep.angle), get_symbol(sep.body1),
-                        get_symbol(sep.body2),
-                        ephem.constellation(sep.body2)[1]),
-                    curses.color_pair(color))
+                w.addstr(row + 3, 0, *sep.format())
             except curses.error:
                 break
             w.clrtoeol()
 
     def update_elongation(self, w):
+        "Elongation for the planets and comets"
         w.addstr(2, 0, 'Elongation')
-        for row, body in enumerate(sorted(self.planets, key=operator.attrgetter('elong'))):
+        bodies = self.planets + self.comets
+        for row, body in enumerate(sorted(bodies, key=operator.attrgetter('elong'))):
             w.addstr(row + 3, 0,
-                "{} {:>13} {}".format(get_symbol(body), _(body.elong), body.name))
+                "{} {:>13} {}".format(
+                    get_symbol(body), _(body.elong), body.name))
             w.clrtoeol()
 
     def update_distance(self, w):
-        # Calculate distance and velocity for objects of interest
+        "Distance and speed (relative to Earth) for objects of interest"
         distances = (Distance(self.date, body) for body in self.except_stars)
         w.addstr(2, 0, 'Distances')
         for row, obj in enumerate(sorted(distances, key=operator.attrgetter('mph'))):
@@ -122,6 +111,7 @@ class Calculate:
             w.clrtoeol()
 
     def update_position(self, w):
+        "Display sky position"
         w.addstr(2, 0, 'Azimuth and Altitude')
         #is_sun_or_is_up = lambda body:body.name == 'Sun' or body.alt > 0
         bodies = self.except_stars  #filter(is_sun_or_is_up, self.except_stars)
@@ -138,6 +128,7 @@ class Calculate:
         w.clrtobot()
 
     def update_moon(self, w):
+        "Display some info about the Moon"
         moon = ephem.Moon(self.date)
         # young or old (within 72 hours)
         previous_new = ephem.previous_new_moon(self.date)
@@ -176,8 +167,9 @@ class Calculate:
 
 
     def calc_rise_set(self, base_date):
-        logger.info("calc_rise_set: {}".format(base_date))
+        "Get rise, transit and setting info for the specified date"
         self.observer.date = ephem.Date(base_date)
+        logger.info("calc_rise_set: {0.observer.date}".format(self))
         for body in self.except_stars:
             body.compute(self.observer)
             for fieldname, azalt in zip(FIELDS, AZALT):
@@ -191,7 +183,8 @@ class Calculate:
                                'azalt': getattr(body, azalt),
                                'symbol': get_symbol(body)})
 
-    def rise_set(self, w):
+    def update_rise_set(self, w):
+        "Display rise, transit and set, ordered chronologically"
         today = int(float(self.date))
         for i in range(today, today + 3):
             if i not in self.rs:
@@ -214,6 +207,7 @@ class Calculate:
                 break
 
 def format_rise_set(ev):
+    "Formatting details for update_rise_set"
     if ev['name'] == 'Sun':
         color = 3
     elif ev['key'] == 'transit':
@@ -229,10 +223,10 @@ def format_rise_set(ev):
 
 
 def format_sky_position(body):
-    "Returns both the formatted string and the desired color"
+    "Formatting details for update_position"
     if body.name == 'Sun':
         color = 3
-    elif body.alt < 0:  # even though we're not currently displaying this
+    elif body.alt < 0:
         color = 0
     else:
         color = 1 if body.az < ephem.degrees('180') else 2
@@ -250,6 +244,7 @@ def format_sky_position(body):
         )
 
 def get_symbol(body):
+    "Get the traditional planetary symbols, among others"
     if isinstance(body, ephem.HyperbolicBody):
         key = '_comet'
     elif isinstance(body, ephem.FixedBody):
@@ -258,7 +253,35 @@ def get_symbol(body):
         key = body.name
     return SYMBOLS[key]
 
+class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
+    "Manage info about the angular separation between two bodies"
+    def is_two_stars(self):
+        return all([isinstance(self.body1, ephem.FixedBody),
+                   isinstance(self.body2, ephem.FixedBody)])
+
+    def trend(self):
+        "Returns True if the two bodies are getting closer"
+        arrows = "UD" #
+        a = self.body1.copy()
+        b = self.body2.copy()
+        later = ephem.now() + ephem.hour
+        a.compute(later)
+        b.compute(later)
+        return ephem.separation(a, b) < self.angle
+
+    def format(self):
+        "Formatting details for update_angles"
+        color = 1 if self.trend() else 2
+        return (
+            "{1:>12}  {2}  {0.body1.name} ⇔ {3} {0.body2.name} ({4})".format(
+                self, _(self.angle), get_symbol(self.body1),
+                get_symbol(self.body2),
+                ephem.constellation(self.body2)[1]),
+            curses.color_pair(color)
+            )
+
 class Distance:
+    "Manage info about the distance between two bodies"
     def __init__(self, date, body):
         self.body = body
         self.miles = miles_from_au(body.earth_distance)
@@ -269,7 +292,7 @@ class Distance:
         self.mph = abs(moved)
 
     def format(self):
-        #returns both the formatted string and the color
+        "Formatting details for update_distance"
         color = 1 if self.trend else 2
         return (
             "{0.mph:8,.0f} mph {0.miles:13,.0f} {1} {0.body.name}".format(
@@ -278,6 +301,8 @@ class Distance:
             )
 
 def main(w):
+    "Initialize and then manage the event loop"
+    logger.debug('Startup')
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
@@ -287,24 +312,23 @@ def main(w):
 
     cmd = 'p'
     ord_commands = list(map(ord, COMMANDS))
-    logger.debug(str(ord_commands))
     while True:
         try:
             ch = w.getch()
-            logger.debug("getch(): {}".format(ch))
             if ch == ord('q'):
                 break
             if ch in ord_commands:
                 cmd = bytes([ch]).decode()
-                logger.debug("Received cmd:{}".format(cmd))
             calculate.update(w, cmd)
             curses.curs_set(0)
             w.refresh()
         except KeyboardInterrupt:
             break
+    logger.debug('Shutdown')
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO,
-        filename=os.path.join(os.environ['VIRTUAL_ENV'], 'ctwin.log'))
+    logging.basicConfig(level=logging.DEBUG,
+        filename=os.path.join(os.environ['VIRTUAL_ENV'], 'ctwin.log'),
+        format="%(asctime)s [%(name)s.%(funcName)s] %(levelname)s: %(message)s")
     curses.wrapper(main)
 
