@@ -5,6 +5,7 @@ import curses
 import itertools
 import collections
 import logging
+import subprocess
 import ephem
 from astro import Comets
 from astro.utils import pairwise
@@ -41,6 +42,7 @@ class Calculate:
                             self.planets + self.comets
         self.all_bodies = self.except_stars + self.stars
         self.rs = collections.defaultdict(list)
+        self.rs_events = []
 
     def compute(self):
         "Compute data for all bodies, not using the Observer"
@@ -299,6 +301,13 @@ class Distance:
                 self, get_symbol(self.body)),
             curses.color_pair(color)
             )
+
+def growl(message):
+    "Send a message to Growl, if we can"
+    growl_path = '/usr/local/bin/growlnotify'
+    if os.path.exists(growl_path):
+        subprocess.call([growl_path, '-m', '"{}"'.format(message)])
+    logger.info("Growl: '{}'".format(message))
 
 def main(w):
     "Initialize and then manage the event loop"
