@@ -23,6 +23,7 @@ FIELDS = ('rise_time', 'transit_time', 'set_time')  # order is important
 AZALT = ('rise_az', 'transit_alt', 'set_az')
 
 event_queue = queue.PriorityQueue()  # rise,transit,set ordered by date
+reschedule_queue = queue.Queue()
 
 @functools.total_ordering
 class Event:
@@ -50,12 +51,14 @@ def event_consumer():
         logger.debug("{:4d} get".format(event_queue.qsize()))
         ev = event_queue.get()
         event_queue.task_done()
-        if ev.date > ephem.now():
-            logger.info("Next event: {}".format(ev))
-            event_queue.put(ev)
-            time.sleep(60)
+        seconds_to_go = 86400 * (ev.date - ephem.now())
+        if seconds_to_go > 0:
+            time.sleep(seconds_to_go)
+        logger.info(str(ev))
+        reschedule_queue.put(ev)
 
-def planetary_body(body):
+
+def planetary_body(body, update_rate):
     logger.debug("Startup")
     observer = ephem.city(CITY)
     body.compute(observer)
@@ -66,11 +69,12 @@ def planetary_body(body):
             ev = Event(body.name, date, fieldname, azalt)
             event_queue.put(ev)
     while True:
+        observer.date = ephem.now()
         body.compute(observer)
-        logger.debug("{0.alt} {0.az}".format(body))
-        time.sleep(60)
+        logger.info("{0.alt} {0.az}".format(body))
+        time.sleep(update_rate)
 
-
+Config = collections.namedtuple('Config', 'body_list update_rate')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
@@ -87,10 +91,18 @@ if __name__ == '__main__':
     else:
         star_list = [ephem.star(name) for name in STARS]
         comet_list = [comets[name] for name in COMETS]
-    all_bodies = sun_and_moon + planets + star_list + comet_list
-    for body in all_bodies:
-        print(body.name)
-        t = threading.Thread(target=planetary_body, args=(body,), name=body.name)
-        t.start()
+    #all_bodies = sun_and_moon + planets + star_list + comet_list
+    configs = (
+        Config(sun_and_moon, 3),
+        Config(planets, 7),
+        Config(comet_list, 13),
+        Config(star_list, 59),
+        )
+    for config in configs:
+        for body in config.body_list:
+            print(body.name)
+            t = threading.Thread(target=planetary_body,
+                    args=(body, config.update_rate), name=body.name)
+            t.start()
     threading.Thread(target=event_consumer, name='Events').start()
 
