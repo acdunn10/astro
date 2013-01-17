@@ -1,3 +1,5 @@
+""" An exercise in working with threads.
+"""
 import sys
 import os
 import operator
@@ -152,8 +154,5 @@ if __name__ == '__main__':
     bt.join()  # wait for all of them to be added
     threading.Thread(target=event_consumer, name='EventConsumer').start()
     threading.Thread(target=rescheduler, name='Rescheduler').start()
-    for name in sorted(bodies.keys()):
-        body = bodies[name]
-        print(name, type(body), body)
 
 

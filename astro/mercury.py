@@ -38,9 +38,9 @@ def main():
 
 def elongation():
     mercury = ephem.Mercury()
-    d = ephem.Date('2009/9/20 9:00:00')
+    d = ephem.Date('2013/1/17 11:00:00')
     for m in range(120):
-        date = ephem.Date(d + m * ephem.minute)
+        date = ephem.Date(d + m * ephem.hour)
         mercury.compute(date)
         print(date, mercury.elong)
 
