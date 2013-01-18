@@ -24,6 +24,7 @@ AZALT = ('rise_az', 'transit_alt', 'set_az')
 
 event_queue = queue.PriorityQueue()  # rise,transit,set ordered by date
 reschedule_queue = queue.Queue()
+position_queue = queue.Queue()
 
 @functools.total_ordering
 class Event:
@@ -57,6 +58,12 @@ def event_consumer():
         logger.info(str(ev))
         reschedule_queue.put(ev)
 
+def position_consumer():
+    logger.debug("Startup")
+    while True:
+        position = position_queue.get()
+        print(position)
+        position_queue.task_done()
 
 def planetary_body(body, update_rate):
     logger.debug("Startup")
@@ -71,7 +78,7 @@ def planetary_body(body, update_rate):
     while True:
         observer.date = ephem.now()
         body.compute(observer)
-        logger.info("{0.alt} {0.az}".format(body))
+        position_queue.put("{0.name} {0.alt} {0.az}".format(body))
         time.sleep(update_rate)
 
 Config = collections.namedtuple('Config', 'body_list update_rate')
@@ -105,4 +112,4 @@ if __name__ == '__main__':
                     args=(body, config.update_rate), name=body.name)
             t.start()
     threading.Thread(target=event_consumer, name='Events').start()
-
+    threading.Thread(target=position_consumer, name='Position').start()
