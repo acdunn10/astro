@@ -337,7 +337,7 @@ def main(w):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
-        filename=os.path.join(os.environ['VIRTUAL_ENV'], 'ctwin.log'),
+        filename=os.path.expanduser('~/Library/Logs/astro-ctwin.log'),
         format="%(asctime)s [%(name)s.%(funcName)s] %(levelname)s: %(message)s")
     curses.wrapper(main)
 

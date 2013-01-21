@@ -55,7 +55,6 @@ def current_separations():
             break
         print(sep)
 
-
 if __name__ == '__main__':
     current_separations()
     #close_star_approaches()
