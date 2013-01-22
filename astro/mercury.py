@@ -17,7 +17,7 @@ from .utils import generate_rise_set
 MINIMUM_ALTITUDE = ephem.degrees('10')
 DAYS_AHEAD = 120
 
-def report(what, when):
+def report(observer, mercury, what, when):
     observer.date = when
     mercury.compute(observer)
     if mercury.alt > MINIMUM_ALTITUDE:
@@ -33,8 +33,8 @@ def main():
     finish_date = ephem.date(start_date + DAYS_AHEAD)
     print(start_date, finish_date)
     for info in generate_rise_set(sun, observer, start_date, finish_date):
-        report("Morning", info.rise)
-        report("Evening", info.set)
+        report(observer, mercury, "Morning", info.rise_time)
+        report(observer, mercury, "Evening", info.set_time)
 
 def elongation():
     mercury = ephem.Mercury()
@@ -45,6 +45,6 @@ def elongation():
         print(date, mercury.elong)
 
 if __name__ == '__main__':
-    #main()
-    elongation()
+    main()
+    #elongation()
 

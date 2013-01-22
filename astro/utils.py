@@ -10,7 +10,8 @@ def pairwise(iterable):
     next(b, None)
     return zip(a, b)
 
-RiseSet = collections.namedtuple('RiseSet', 'rise rise_az set set_az')
+RiseSet = collections.namedtuple('RiseSet',
+                                 'name rise_time rise_az set_time set_az')
 
 def generate_rise_set(body, observer, start_date=None, ending_date=None):
     """ Generate pairs of rise and set times for a given body
@@ -23,7 +24,7 @@ def generate_rise_set(body, observer, start_date=None, ending_date=None):
         observer.date = observer.next_rising(body)
         rise_time, rise_az = observer.date, body.az
         observer.date = observer.next_setting(body)
-        yield RiseSet(rise_time, rise_az, observer.date, body.az)
+        yield RiseSet(body.name, rise_time, rise_az, observer.date, body.az)
         if ending_date is not None and observer.date >= ending_date:
             raise StopIteration
 
