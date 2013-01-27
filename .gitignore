@@ -1,4 +1,4 @@
 *.pyc
 tags
-site-packages.tags
 __pycache__
+sun-moon.txt
