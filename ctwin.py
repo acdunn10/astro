@@ -19,7 +19,7 @@ STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
 COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
 MAX_ANGLE = ephem.degrees('30')
-COMMANDS = 'ademrp'
+COMMANDS = 'adDemrp'
 
 FIELDS = ('rise_time', 'transit_time', 'set_time')
 AZALT = ('rise_az', 'transit_alt', 'set_az')
@@ -68,6 +68,8 @@ class Calculate:
             self.compute().update_angles(w)
         elif cmd == 'd':
             self.compute().update_distance(w)
+        elif cmd == 'D':
+            self.compute().update_sun_distance(w)
         elif cmd == 'p':
             self.compute_observer().update_position(w)
         elif cmd == 'r':
@@ -77,6 +79,11 @@ class Calculate:
         elif cmd == 'e':
             self.compute().update_elongation(w)
         self.cmd = cmd
+        today = int(float(self.date))
+        for i in range(today, today + 3):
+            if i not in self.rs:
+                self.calc_rise_set(i)
+
 
     def update_angles(self, w):
         "Display the closest angular separations"
@@ -106,8 +113,18 @@ class Calculate:
 
     def update_distance(self, w):
         "Distance and speed (relative to Earth) for objects of interest"
-        distances = (Distance(self.date, body) for body in self.except_stars)
-        w.addstr(2, 0, 'Distances')
+        self._update_distance(w, 'earth_distance', 'Earth Distances')
+
+    def update_sun_distance(self, w):
+        "Distance and speed relative to Sun"
+        self._update_distance(w, 'sun_distance', 'Sun Distances')
+
+    def _update_distance(self, w, attr, title):
+        distances = (
+            Distance(self.date, body, attr)
+            for body in self.except_stars
+            )
+        w.addstr(2, 0, title)
         for row, obj in enumerate(sorted(distances, key=operator.attrgetter('mph'))):
             w.addstr(row + 3, 0, *obj.format())
             w.clrtoeol()
@@ -187,11 +204,6 @@ class Calculate:
 
     def update_rise_set(self, w):
         "Display rise, transit and set, ordered chronologically"
-        today = int(float(self.date))
-        for i in range(today, today + 3):
-            if i not in self.rs:
-                self.calc_rise_set(i)
-
         events = []
         localdate = ephem.localtime(self.date)
         for key in self.rs.keys():
@@ -284,12 +296,12 @@ class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
 
 class Distance:
     "Manage info about the distance between two bodies"
-    def __init__(self, date, body):
+    def __init__(self, date, body, attr='earth_distance'):
         self.body = body
-        self.miles = miles_from_au(body.earth_distance)
+        self.miles = miles_from_au(getattr(body, attr))
         x = body.copy()
         x.compute(ephem.date(date + ephem.hour))
-        moved = miles_from_au(x.earth_distance) - self.miles
+        moved = miles_from_au(getattr(x, attr)) - self.miles
         self.trend = moved < 0
         self.mph = abs(moved)
 
@@ -311,7 +323,7 @@ def growl(message):
 
 def main(w):
     "Initialize and then manage the event loop"
-    logger.debug('Startup')
+    logger.info('Startup')
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
@@ -333,7 +345,7 @@ def main(w):
             w.refresh()
         except KeyboardInterrupt:
             break
-    logger.debug('Shutdown')
+    logger.info('Shutdown')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
