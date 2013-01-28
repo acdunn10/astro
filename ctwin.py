@@ -19,35 +19,64 @@ from astro.utils import format_angle as _
 from astro import miles_from_au
 from astro import PLANETS, SYMBOLS, CITY
 from ephem.stars import stars
+from astro import SpaceStations
 
 logger = logging.getLogger('astro')
 
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
-COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
+COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)',
+          '273P/Pons-Gambart', 'C/2012 F6 (Lemmon)',
+          'C/2006 S3 (LONEOS)',
+         )
 COMMANDS = 'adDemrp'
 
 rst_requests = queue.Queue()  # stores rise-transit-set requests
 rst_results = queue.Queue()  # computed rise, transit and set times.
 
-class RSTEvent(collections.namedtuple('RSTEvent', 'body kind date azalt')):
-    def format(self):
-        key = self.kind.split('_')[1]
-        azalt = int(math.degrees(self.azalt))
-        if self.body.name == 'Sun':
-            color = 3
-        elif key == 'transit':
-            color = 1
-        elif key == 'setting':
-            color = 2
-        else:
-            color = 0
-        return (
-            "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
-                get_symbol(self.body), ephem.localtime(self.date), key,
-                self.body.name, azalt),
-            curses.color_pair(color)
-            )
+def format_rise_transit_set(dct):
+    key = dct.get('key', dct['kind'].split('_')[1])
+    if dct['body'].name == 'Sun':
+        color = 3
+    elif isinstance(dct['body'], ephem.EarthSatellite):
+        color = 4
+    elif key == 'transit':
+        color = 1
+    elif key == 'setting':
+        color = 2
+    else:
+        color = 0
+    return (
+        "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
+            get_symbol(dct['body']), ephem.localtime(dct['date']), key,
+            dct['body'].name, dct['azalt']),
+        curses.color_pair(color)
+        )
+
+
+def handle_earth_satellite(dct, method):
+    keys = ('rising', 'transit', 'setting')
+    info = method(dct['body'])
+    args = zip(*[iter(info)] * 2)
+    for ((date, azalt), key) in zip(args, keys):
+        if date and azalt:
+            d = dct.copy()
+            d['date'] = date
+            d['azalt'] = azalt
+            d['key'] = key
+            d['reschedule'] = (key == 'setting')
+            rst_results.put(d)
+
+
+def handle_body(dct, method):
+    "Get next rising, transit or setting"
+    try:
+        dct['date'] = method(dct['body'])
+        azalt = dct['body'].alt if dct['kind'] == 'next_transit' else dct['body'].az
+        dct['azalt'] = int(math.degrees(azalt))
+        rst_results.put(dct)
+    except ephem.CircumpolarError as e:
+        logger.error(str(e))
 
 
 def rst_producer(event):
@@ -55,19 +84,16 @@ def rst_producer(event):
         if event.wait(timeout=0.1):
             break
         try:
-            body, kind = rst_requests.get(block=True, timeout=0.5)
+            dct = rst_requests.get(block=True, timeout=0.5)
             rst_requests.task_done()
-            logger.debug('Request: {} for {}'.format(kind, body.name))
+            logger.debug('Request: {kind} for {body.name}'.format(**dct))
             observer = ephem.city(CITY)
-            method = getattr(observer, kind)
-            try:
-                date = method(body)
-            except ephem.CircumpolarError as e:
-                logger.error("Error: {} for {} -- {}".format(
-                    kind, body.name, e))
+            method = getattr(observer, dct['kind'])
+            if dct['kind'] == 'next_pass':
+                handle_earth_satellite(dct, method)
                 continue
-            azalt = body.alt if kind == 'next_transit' else body.az
-            rst_results.put(RSTEvent(body, kind, date, azalt))
+            else:
+                handle_body(dct, method)
         except queue.Empty:
             pass
 
@@ -85,6 +111,10 @@ class Calculate:
         comet_dict = Comets()
         logger.info("Comets last-modified: {}".format(comet_dict.last_modified))
         self.comets = [comet_dict[name] for name in COMETS]
+        stations = SpaceStations()
+        logger.info("Space Stations last-modified: {}".format(
+            stations.last_modified))
+        self.satellites = list(stations.values())
         self.except_stars = [self.sun, self.moon] + \
                             self.planets + self.comets
         self.all_bodies = self.except_stars + self.stars
@@ -92,13 +122,16 @@ class Calculate:
 
         def make_rst_request(body):
             for kind in ('next_rising', 'next_transit', 'next_setting'):
-                rst_requests.put((body, kind))
+                rst_requests.put({'body': body, 'kind': kind})
 
         [make_rst_request(body) for body in self.except_stars]
+        [rst_requests.put({'body':body, 'kind':'next_pass'})
+            for body in self.satellites
+        ]
 
         # For testing rise/transit/set, it's useful to have
         # a large number of bodies
-        if True:
+        if False:
             for name in stars.keys():
                 star = ephem.star(name)
                 make_rst_request(star)
@@ -191,8 +224,8 @@ class Calculate:
     def update_position(self, w):
         "Display sky position"
         w.addstr(2, 0, 'Azimuth and Altitude')
-        #is_sun_or_is_up = lambda body:body.name == 'Sun' or body.alt > 0
-        bodies = self.except_stars  #filter(is_sun_or_is_up, self.except_stars)
+        [body.compute(self.observer) for body in self.satellites]
+        bodies = self.except_stars + self.satellites
         flag = 3
         for row, body in enumerate(sorted(bodies, key=operator.attrgetter('alt'), reverse=True)):
             try:
@@ -251,22 +284,23 @@ class Calculate:
                 event = rst_results.get(block=False)
                 rst_results.task_done()
                 self.rst_events.append(event)
-                logger.debug('Added: {0.kind} for {0.body.name}'.format(event))
+                logger.debug('Added: {kind} for {body.name}'.format(**event))
             except queue.Empty:
                 break
         w.addstr(2, 0, 'Rise, Transit and Set events={:5d} requests={:5d}'.format(
             len(self.rst_events), rst_requests.qsize()))
-        for row, ev in enumerate(sorted(self.rst_events, key=operator.attrgetter('date'))):
+        for row, ev in enumerate(sorted(self.rst_events, key=operator.itemgetter('date'))):
             try:
-                w.addstr(row + 3, 0, *ev.format())
+                w.addstr(row + 3, 0, *format_rise_transit_set(ev))
                 w.clrtoeol()
             except curses.error:
                 break
         for event in reversed(self.rst_events):
-            if event.date < self.date:
-                rst_requests.put((event.body, event.kind))
-                logger.debug('Deleting: {} for {}'.format(
-                    event.kind, event.body.name))
+            if event['date'] < self.date:
+                reschedule = event.get('reschedule', True)
+                if reschedule:
+                    rst_requests.put(event)
+                logger.debug('Deleting: {kind} for {body.name}'.format(**event))
                 self.rst_events.remove(event)
 
 
@@ -274,6 +308,8 @@ def format_sky_position(body):
     "Formatting details for update_position"
     if body.name == 'Sun':
         color = 3
+    elif isinstance(body, ephem.EarthSatellite):
+        color = 4
     elif body.alt < 0:
         color = 0
     else:
@@ -281,6 +317,8 @@ def format_sky_position(body):
     symbol = get_symbol(body)
     if body.name == 'Moon':
         extra = "Phase {0.moon_phase:.2%}".format(body)
+    elif isinstance(body, ephem.EarthSatellite):
+        extra = "#{0._orbit} Incl={0._inc}°".format(body)
     elif body.name != 'Sun':
         extra = "{0.mag:+.1f}".format(body)
     else:
@@ -293,10 +331,12 @@ def format_sky_position(body):
 
 def get_symbol(body):
     "Get the traditional planetary symbols, among others"
-    if isinstance(body, ephem.HyperbolicBody):
+    if isinstance(body, (ephem.HyperbolicBody, ephem.ParabolicBody, ephem.EllipticalBody)):
         key = '_comet'
     elif isinstance(body, ephem.FixedBody):
         key = '_star'
+    elif isinstance(body, ephem.EarthSatellite):
+        key = '_satellite'
     else:
         key = body.name
     return SYMBOLS.get(key, '?')

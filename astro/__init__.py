@@ -2,6 +2,7 @@
 
 import ephem
 from .comets import Comets
+from .space_stations import SpaceStations
 
 VISIBLE_PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
            ephem.Jupiter, ephem.Saturn)
@@ -22,6 +23,7 @@ SYMBOLS = {
     'Neptune': '♆',
     '_comet': '☄',
     '_star': '★',
+    '_satellite': '✺',
     }
 
 CITY = 'Columbus'  # my default city
