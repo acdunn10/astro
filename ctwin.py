@@ -19,7 +19,7 @@ from astro.utils import format_angle as _
 from astro import miles_from_au
 from astro import PLANETS, SYMBOLS, CITY
 from ephem.stars import stars
-from astro import SpaceStations
+from astro import EarthSatellites
 
 logger = logging.getLogger('astro')
 
@@ -111,10 +111,10 @@ class Calculate:
         comet_dict = Comets()
         logger.info("Comets last-modified: {}".format(comet_dict.last_modified))
         self.comets = [comet_dict[name] for name in COMETS]
-        stations = SpaceStations()
-        logger.info("Space Stations last-modified: {}".format(
-            stations.last_modified))
-        self.satellites = list(stations.values())
+        sats = EarthSatellites()
+        logger.info("Earth Satellites last-modified: {}".format(
+            sats.last_modified))
+        self.satellites = list(sats.values())
         self.except_stars = [self.sun, self.moon] + \
                             self.planets + self.comets
         self.all_bodies = self.except_stars + self.stars
@@ -175,6 +175,23 @@ class Calculate:
         elif cmd == 'e':
             self.compute().update_elongation(w)
         self.cmd = cmd
+        # Add any newly calculated rst events to my list
+        while True:
+            try:
+                event = rst_results.get(block=False)
+                rst_results.task_done()
+                self.rst_events.append(event)
+                logger.debug('Added: {kind} for {body.name}'.format(**event))
+            except queue.Empty:
+                break
+        # Get rid of past events and reschedule
+        for event in reversed(self.rst_events):
+            if event['date'] < self.date:
+                reschedule = event.get('reschedule', True)
+                if reschedule:
+                    rst_requests.put(event)
+                logger.debug('Deleting: {kind} for {body.name}'.format(**event))
+                self.rst_events.remove(event)
 
 
     def update_angles(self, w):
@@ -278,15 +295,6 @@ class Calculate:
 
     def update_rise_set(self, w):
         "Display rise, transit and set, ordered chronologically"
-        # Add any newly calculated rst events to my list
-        while True:
-            try:
-                event = rst_results.get(block=False)
-                rst_results.task_done()
-                self.rst_events.append(event)
-                logger.debug('Added: {kind} for {body.name}'.format(**event))
-            except queue.Empty:
-                break
         w.addstr(2, 0, 'Rise, Transit and Set events={:5d} requests={:5d}'.format(
             len(self.rst_events), rst_requests.qsize()))
         for row, ev in enumerate(sorted(self.rst_events, key=operator.itemgetter('date'))):
@@ -295,13 +303,6 @@ class Calculate:
                 w.clrtoeol()
             except curses.error:
                 break
-        for event in reversed(self.rst_events):
-            if event['date'] < self.date:
-                reschedule = event.get('reschedule', True)
-                if reschedule:
-                    rst_requests.put(event)
-                logger.debug('Deleting: {kind} for {body.name}'.format(**event))
-                self.rst_events.remove(event)
 
 
 def format_sky_position(body):

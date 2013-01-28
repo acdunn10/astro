@@ -1,6 +1,6 @@
 # -*- coding: utf8
 """
-    Get and save the info about space stations
+    Earth Satellite info
 
     http://spaceflight.nasa.gov/realdata/sightings/cities/view.cgi?
         country=United_States&region=Ohio&city=Columbus
@@ -17,37 +17,17 @@ import itertools
 import collections
 from .files import astro_config
 
-__all__ = ['SpaceStations', 'save_space_stations']
+__all__ = ['EarthSatellites', 'save_space_stations']
 
 # where we locally save Space Station elements
-SOURCE = astro_config('space-stations.txt')
+SOURCE = astro_config('satellites.txt')
 
 PASSES = 10
-URL = 'http://celestrak.com/NORAD/elements/stations.txt'
+URL = 'http://celestrak.com/NORAD/elements/visual.txt'
 MAXIMUM_AGE_DAYS = 5
 
-SatPass = collections.namedtuple('SatPass',
-    'rise_time rise_az transit_time transit_alt set_time set_az')
 
-def satellite_observations(satellite, observer, passes=PASSES):
-    satellite.compute(observer)
-    print("Current position: Lat={0.sublat} Lon={0.sublong}".format(satellite))
-    print("Elevation: {0.elevation}".format(satellite))
-    print("Range: {0.range}".format(satellite))
-    print("Range velocity: {0.range_velocity}".format(satellite))
-    print("Eclipsed? {0.eclipsed}".format(satellite))
-    sun = ephem.Sun(observer)
-    for i in range(PASSES):
-        info = SatPass(*observer.next_pass(satellite))
-        observer.date = info.transit_time
-        sun.compute(observer)
-        satellite.compute(observer)
-        if not satellite.eclipsed:
-            transit_time = ephem.localtime(info.transit_time).replace(microsecond=0)
-            print("Transit ", transit_time, "at", info.transit_alt)
-        observer.date = info.set_time + ephem.minute
-
-class SpaceStations(dict):
+class EarthSatellites(dict):
     "A dictionary but with last_modified info added"
     def __init__(self):
         super().__init__()
@@ -70,20 +50,6 @@ def save_space_stations():
             f.write('# {}\r\n'.format(r.headers['Last-Modified']))
             f.write(r.text)
 
-# def get_stations():
-#     with open(SOURCE) as f:
-#         s = f.readline().strip()
-#         last_request = time.mktime(time.strptime(s[7:], "%d %b %Y %H:%M:%S GMT"))
-#         # TODO - should convert to GMT
-#         stations = {}
-#         lines = [line.strip() for line in f]
-#         args = [iter(lines)] * 3
-#         stations = {
-#             name: [name, line1, line2]
-#             for name, line1, line2 in zip(*args)
-#             }
-#     return (last_request, stations)
-
 def main():
     from . import CITY
     if not os.path.exists(SOURCE):
@@ -102,8 +68,8 @@ def main():
 
 if __name__ == '__main__':
     #save_space_stations()
-    stations = SpaceStations()
-    print(len(stations), 'stations, last modified on', stations.last_modified)
+    stations = EarthSatellites()
+    print(len(stations), 'satellites, last modified on', stations.last_modified)
     if ephem.now() - stations.last_modified> MAXIMUM_AGE_DAYS:
         print("Space station data is old, requesting newer data")
         save_space_stations()
