@@ -1,26 +1,11 @@
-Some programs I've written using PyEphem.
+# Astro
 
-PyEphem can be found at:
-    http://rhodesmill.org/pyephem/
+Some programs I've written using PyEphem. It's not a package to be installed,
+more a collection of toys and experiments I've done with PyEphem.
 
-I started out writing this in Python 2.7, but I'm now converting
-to Python 3.3
+The PyEphem home page is <http://rhodesmill.org/pyephem/>
 
-I usually run this in a virtual environment. Once you have
-Python 3.3:
+I'm using the [package built for Python 3, called ephem instead of PyEphem.](http://pypi.python.org/pypi/ephem/)
 
-    pyvenv ~/venv/astro  # or wherever you'd like it
-    # I use virtualenvwrapper to manage the virtual environments,
-    # so the workon command puts me in the right spot.
-    workon astro
-    # Install distribute. I keep a local copy handy
-    python ~/Dropbox/src/distribute_setup.py
-    # Check the version, usually:  distribute 0.6.30
-    easy_install --version
-    # Now install ephem. I keep a local copy
-    easy_install ~/Dropbox/src/ephem-3.7.5.1.tar.gz
-    # Install requests -- used in space_station.py to get
-    # the space station satellite data
-    easy_install requests
-    # I usually work directly in the repository
-    cd ~/github/astro
+The [Requests package](http://docs.python-requests.org/en/latest/user/install/) is used to get the latest space station and comet data.
+
