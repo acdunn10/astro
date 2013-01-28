@@ -2,27 +2,74 @@ import sys
 import os
 import operator
 import curses
+import math
 import itertools
 import collections
 import logging
 import subprocess
+import threading
+import queue
+import time
+import warnings
+warnings.simplefilter('default')
 import ephem
 from astro import Comets
 from astro.utils import pairwise
 from astro.utils import format_angle as _
 from astro import miles_from_au
 from astro import PLANETS, SYMBOLS, CITY
+from ephem.stars import stars
 
 logger = logging.getLogger('astro')
 
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
 COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
-MAX_ANGLE = ephem.degrees('30')
 COMMANDS = 'adDemrp'
 
-FIELDS = ('rise_time', 'transit_time', 'set_time')
-AZALT = ('rise_az', 'transit_alt', 'set_az')
+rst_requests = queue.Queue()  # stores rise-transit-set requests
+rst_results = queue.Queue()  # computed rise, transit and set times.
+
+class RSTEvent(collections.namedtuple('RSTEvent', 'body kind date azalt')):
+    def format(self):
+        key = self.kind.split('_')[1]
+        azalt = int(math.degrees(self.azalt))
+        if self.body.name == 'Sun':
+            color = 3
+        elif key == 'transit':
+            color = 1
+        elif key == 'setting':
+            color = 2
+        else:
+            color = 0
+        return (
+            "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
+                get_symbol(self.body), ephem.localtime(self.date), key,
+                self.body.name, azalt),
+            curses.color_pair(color)
+            )
+
+
+def rst_producer(event):
+    while not event.is_set():
+        if event.wait(timeout=0.1):
+            break
+        try:
+            body, kind = rst_requests.get(block=True, timeout=0.5)
+            rst_requests.task_done()
+            logger.debug('Request: {} for {}'.format(kind, body.name))
+            observer = ephem.city(CITY)
+            method = getattr(observer, kind)
+            try:
+                date = method(body)
+            except ephem.CircumpolarError as e:
+                logger.error("Error: {} for {} -- {}".format(
+                    kind, body.name, e))
+                continue
+            azalt = body.alt if kind == 'next_transit' else body.az
+            rst_results.put(RSTEvent(body, kind, date, azalt))
+        except queue.Empty:
+            pass
 
 
 class Calculate:
@@ -41,8 +88,24 @@ class Calculate:
         self.except_stars = [self.sun, self.moon] + \
                             self.planets + self.comets
         self.all_bodies = self.except_stars + self.stars
-        self.rs = collections.defaultdict(list)
-        self.rs_events = []
+        self.rst_events = []
+
+        def make_rst_request(body):
+            for kind in ('next_rising', 'next_transit', 'next_setting'):
+                rst_requests.put((body, kind))
+
+        [make_rst_request(body) for body in self.except_stars]
+
+        # For testing rise/transit/set, it's useful to have
+        # a large number of bodies
+        if True:
+            for name in stars.keys():
+                star = ephem.star(name)
+                make_rst_request(star)
+            comets = Comets()
+            for comet in comets.values():
+                make_rst_request(comet)
+
 
     def compute(self):
         "Compute data for all bodies, not using the Observer"
@@ -79,10 +142,6 @@ class Calculate:
         elif cmd == 'e':
             self.compute().update_elongation(w)
         self.cmd = cmd
-        today = int(float(self.date))
-        for i in range(today, today + 3):
-            if i not in self.rs:
-                self.calc_rise_set(i)
 
 
     def update_angles(self, w):
@@ -184,56 +243,31 @@ class Calculate:
         w.addstr(5, 0, "Azimuth {}".format(_(m2.az)))
         w.addstr(5, 30, "Altitude {}".format(_(m2.alt)))
 
-
-    def calc_rise_set(self, base_date):
-        "Get rise, transit and setting info for the specified date"
-        self.observer.date = ephem.Date(base_date)
-        logger.info("calc_rise_set: {0.observer.date}".format(self))
-        for body in self.except_stars:
-            body.compute(self.observer)
-            for fieldname, azalt in zip(FIELDS, AZALT):
-                date = getattr(body, fieldname)
-                if date is None:
-                    continue
-                self.rs[base_date].append({
-                               'key': fieldname.split('_')[0],
-                               'name': body.name,
-                               'date': ephem.localtime(date),
-                               'azalt': getattr(body, azalt),
-                               'symbol': get_symbol(body)})
-
     def update_rise_set(self, w):
         "Display rise, transit and set, ordered chronologically"
-        events = []
-        localdate = ephem.localtime(self.date)
-        for key in self.rs.keys():
-            for ev in self.rs[key]:
-                if ev['date'] >= localdate:
-                    events.append(ev)
-        w.addstr(2, 0, 'Rise, Transit and Set {:2d} {:4d}'.format(
-            len(self.rs), len(events)))
-        events.sort(key=operator.itemgetter('date'))
-        for row, ev in enumerate(events):
+        # Add any newly calculated rst events to my list
+        while True:
             try:
-                w.addstr(row + 3, 0, *format_rise_set(ev))
+                event = rst_results.get(block=False)
+                rst_results.task_done()
+                self.rst_events.append(event)
+                logger.debug('Added: {0.kind} for {0.body.name}'.format(event))
+            except queue.Empty:
+                break
+        w.addstr(2, 0, 'Rise, Transit and Set events={:5d} requests={:5d}'.format(
+            len(self.rst_events), rst_requests.qsize()))
+        for row, ev in enumerate(sorted(self.rst_events, key=operator.attrgetter('date'))):
+            try:
+                w.addstr(row + 3, 0, *ev.format())
                 w.clrtoeol()
             except curses.error:
                 break
-
-def format_rise_set(ev):
-    "Formatting details for update_rise_set"
-    if ev['name'] == 'Sun':
-        color = 3
-    elif ev['key'] == 'transit':
-        color = 1
-    elif ev['key'] == 'set':
-        color = 2
-    else:
-        color = 0
-    return (
-        "{symbol} {date:%a %I:%M:%S %p} {key:^7} {name} {azalt}°".format(**ev),
-        curses.color_pair(color)
-        )
+        for event in reversed(self.rst_events):
+            if event.date < self.date:
+                rst_requests.put((event.body, event.kind))
+                logger.debug('Deleting: {} for {}'.format(
+                    event.kind, event.body.name))
+                self.rst_events.remove(event)
 
 
 def format_sky_position(body):
@@ -265,7 +299,7 @@ def get_symbol(body):
         key = '_star'
     else:
         key = body.name
-    return SYMBOLS[key]
+    return SYMBOLS.get(key, '?')
 
 class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
     "Manage info about the angular separation between two bodies"
@@ -330,6 +364,10 @@ def main(w):
     curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
     w.timeout(2000)
     calculate = Calculate()
+    producer_event = threading.Event()
+    t = threading.Thread(target=rst_producer,
+        args=(producer_event,), name='RST-Producer')
+    t.start()
 
     cmd = 'p'
     ord_commands = list(map(ord, COMMANDS))
@@ -345,11 +383,13 @@ def main(w):
             w.refresh()
         except KeyboardInterrupt:
             break
+    producer_event.set()
     logger.info('Shutdown')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
         filename=os.path.expanduser('~/Library/Logs/astro-ctwin.log'),
         format="%(asctime)s [%(name)s.%(funcName)s] %(levelname)s: %(message)s")
+    logging.captureWarnings(True)
     curses.wrapper(main)
 
