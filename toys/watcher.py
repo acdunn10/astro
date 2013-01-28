@@ -131,7 +131,6 @@ def body_consumer():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
-        filename=os.path.expanduser('~/Library/Logs/AstroWatcher.log'),
         format="%(asctime)s %(levelname)s %(threadName)s %(message)s")
     # Load the body queue before we start things up
     LONG_LIST = False  # long list useful when debugging to have a lot of bodies
