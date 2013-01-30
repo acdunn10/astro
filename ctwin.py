@@ -29,13 +29,15 @@ COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)',
           '273P/Pons-Gambart', 'C/2012 F6 (Lemmon)',
           'C/2006 S3 (LONEOS)',
          )
+SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
+
 COMMANDS = 'adDemrp'
 
 rst_requests = queue.Queue()  # stores rise-transit-set requests
 rst_results = queue.Queue()  # computed rise, transit and set times.
 
 def format_rise_transit_set(dct):
-    key = dct.get('key', dct['kind'].split('_')[1])
+    key = dct['key']
     if dct['body'].name == 'Sun':
         color = 3
     elif isinstance(dct['body'], ephem.EarthSatellite):
@@ -53,8 +55,12 @@ def format_rise_transit_set(dct):
         curses.color_pair(color)
         )
 
+def m_to_mi(meters):
+    return meters / 1609.344
 
 def handle_earth_satellite(dct, method):
+    """ Put up to three items for rise/transit/set. But set
+        reschedule only for setting."""
     keys = ('rising', 'transit', 'setting')
     info = method(dct['body'])
     args = zip(*[iter(info)] * 2)
@@ -62,7 +68,7 @@ def handle_earth_satellite(dct, method):
         if date and azalt:
             d = dct.copy()
             d['date'] = date
-            d['azalt'] = azalt
+            d['azalt'] = int(math.degrees(azalt))
             d['key'] = key
             d['reschedule'] = (key == 'setting')
             rst_results.put(d)
@@ -74,12 +80,14 @@ def handle_body(dct, method):
         dct['date'] = method(dct['body'])
         azalt = dct['body'].alt if dct['kind'] == 'next_transit' else dct['body'].az
         dct['azalt'] = int(math.degrees(azalt))
+        dct['key'] = dct['kind'].split('_')[1]
         rst_results.put(dct)
     except ephem.CircumpolarError as e:
         logger.error(str(e))
 
 
 def rst_producer(event):
+    "Calculate next rising/transit/setting/pass from the requests queue"
     while not event.is_set():
         if event.wait(timeout=0.1):
             break
@@ -91,7 +99,6 @@ def rst_producer(event):
             method = getattr(observer, dct['kind'])
             if dct['kind'] == 'next_pass':
                 handle_earth_satellite(dct, method)
-                continue
             else:
                 handle_body(dct, method)
         except queue.Empty:
@@ -100,9 +107,9 @@ def rst_producer(event):
 
 class Calculate:
     "Manage the display of data in the curses window"
-    def __init__(self):
+    def __init__(self, cmd):
         "Load up initial data, including the comets"
-        self.cmd = 'p'
+        self.cmd = cmd
         self.observer = ephem.city(CITY)
         self.sun = ephem.Sun()
         self.moon = ephem.Moon()
@@ -114,7 +121,7 @@ class Calculate:
         sats = EarthSatellites()
         logger.info("Earth Satellites last-modified: {}".format(
             sats.last_modified))
-        self.satellites = list(sats.values())
+        self.satellites = [sats[name] for name in SATELLITES]
         self.except_stars = [self.sun, self.moon] + \
                             self.planets + self.comets
         self.all_bodies = self.except_stars + self.stars
@@ -178,19 +185,18 @@ class Calculate:
         # Add any newly calculated rst events to my list
         while True:
             try:
-                event = rst_results.get(block=False)
+                event = rst_results.get_nowait()
                 rst_results.task_done()
                 self.rst_events.append(event)
-                logger.debug('Added: {kind} for {body.name}'.format(**event))
+                logger.debug('Added: {key} for {body.name}'.format(**event))
             except queue.Empty:
                 break
         # Get rid of past events and reschedule
         for event in reversed(self.rst_events):
             if event['date'] < self.date:
-                reschedule = event.get('reschedule', True)
-                if reschedule:
+                if event.get('reschedule', True):
                     rst_requests.put(event)
-                logger.debug('Deleting: {kind} for {body.name}'.format(**event))
+                logger.debug('Deleting: {key} for {body.name}'.format(**event))
                 self.rst_events.remove(event)
 
 
@@ -292,6 +298,7 @@ class Calculate:
                 distance, moved), curses.color_pair(color))
         w.addstr(5, 0, "Azimuth {}".format(_(m2.az)))
         w.addstr(5, 30, "Altitude {}".format(_(m2.alt)))
+        w.addstr(6, 0, "Declination {}".format(_(m2.dec)))
 
     def update_rise_set(self, w):
         "Display rise, transit and set, ordered chronologically"
@@ -319,7 +326,10 @@ def format_sky_position(body):
     if body.name == 'Moon':
         extra = "Phase {0.moon_phase:.2%}".format(body)
     elif isinstance(body, ephem.EarthSatellite):
-        extra = "#{0._orbit} Incl={0._inc}°".format(body)
+        #extra = "#{0._orbit} Incl={0._inc}°".format(body)
+        extra = "i{1:.0f}° {2:,.0f} {3:,.0f} {0}".format(
+            not body.eclipsed, math.degrees(body._inc), m_to_mi(body.range),
+            m_to_mi(body.range_velocity))
     elif body.name != 'Sun':
         extra = "{0.mag:+.1f}".format(body)
     else:
@@ -404,13 +414,18 @@ def main(w):
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
     w.timeout(2000)
-    calculate = Calculate()
+    try:
+        cmd = sys.argv[1]
+        if cmd not in COMMANDS:
+            cmd = 'p'
+    except IndexError:
+        cmd = 'p'
+    calculate = Calculate(cmd)
     producer_event = threading.Event()
     t = threading.Thread(target=rst_producer,
         args=(producer_event,), name='RST-Producer')
     t.start()
 
-    cmd = 'p'
     ord_commands = list(map(ord, COMMANDS))
     while True:
         try:
