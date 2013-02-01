@@ -60,7 +60,10 @@ def m_to_mi(meters):
 
 def handle_earth_satellite(dct, method):
     """ Put up to three items for rise/transit/set. But set
-        reschedule only for setting."""
+        reschedule only for setting. Sometimes when we do
+        this we get info for the pass that is just completing.
+        To avoid that, add a minute to the start time.
+    """
     keys = ('rising', 'transit', 'setting')
     info = method(dct['body'])
     args = zip(*[iter(info)] * 2)
@@ -96,6 +99,7 @@ def rst_producer(event):
             rst_requests.task_done()
             logger.debug('Request: {kind} for {body.name}'.format(**dct))
             observer = ephem.city(CITY)
+            observer.date = ephem.Date(ephem.now() + ephem.minute)
             method = getattr(observer, dct['kind'])
             if dct['kind'] == 'next_pass':
                 handle_earth_satellite(dct, method)
