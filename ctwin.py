@@ -33,8 +33,8 @@ SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
 
 COMMANDS = 'adDemrp'
 
-rst_requests = queue.Queue()  # stores rise-transit-set requests
-rst_results = queue.Queue()  # computed rise, transit and set times.
+# rst_requests = queue.Queue()  # stores rise-transit-set requests
+# rst_results = queue.Queue()  # computed rise, transit and set times.
 
 def format_rise_transit_set(dct):
     key = dct['key']
@@ -58,24 +58,6 @@ def format_rise_transit_set(dct):
 def m_to_mi(meters):
     return meters / 1609.344
 
-def handle_earth_satellite(dct, method):
-    """ Put up to three items for rise/transit/set. But set
-        reschedule only for setting. Sometimes when we do
-        this we get info for the pass that is just completing.
-        To avoid that, add a minute to the start time.
-    """
-    keys = ('rising', 'transit', 'setting')
-    info = method(dct['body'])
-    args = zip(*[iter(info)] * 2)
-    for ((date, azalt), key) in zip(args, keys):
-        if date and azalt:
-            d = dct.copy()
-            d['date'] = date
-            d['azalt'] = int(math.degrees(azalt))
-            d['key'] = key
-            d['reschedule'] = (key == 'setting')
-            rst_results.put(d)
-
 
 def handle_body(dct, method):
     "Get next rising, transit or setting"
@@ -84,29 +66,65 @@ def handle_body(dct, method):
         azalt = dct['body'].alt if dct['kind'] == 'next_transit' else dct['body'].az
         dct['azalt'] = int(math.degrees(azalt))
         dct['key'] = dct['kind'].split('_')[1]
-        rst_results.put(dct)
+        return dct
     except ephem.CircumpolarError as e:
         logger.error(str(e))
 
+class RiseTransitSetProcessor(threading.Thread):
+    def __init__(self, requests, results):
+        super().__init__()
+        self.name = self.__class__.__name__
+        self.requests = requests
+        self.results = results
+        logger.debug("Init")
 
-def rst_producer(event):
-    "Calculate next rising/transit/setting/pass from the requests queue"
-    while not event.is_set():
-        if event.wait(timeout=0.1):
-            break
-        try:
-            dct = rst_requests.get(block=True, timeout=0.5)
-            rst_requests.task_done()
+    def run(self):
+        logger.debug("Running")
+        while True:
+            dct = self.requests.get()
+            self.requests.task_done()
+            if dct is None:
+                break
             logger.debug('Request: {kind} for {body.name}'.format(**dct))
             observer = ephem.city(CITY)
             observer.date = ephem.Date(ephem.now() + ephem.minute)
             method = getattr(observer, dct['kind'])
-            if dct['kind'] == 'next_pass':
-                handle_earth_satellite(dct, method)
-            else:
-                handle_body(dct, method)
-        except queue.Empty:
-            pass
+            dct = handle_body(dct, method)
+            if dct is not None:
+                self.results.put(dct)
+        logging.debug("Terminated")
+
+class SatellitePassProcessor(threading.Thread):
+    def __init__(self, requests, results):
+        super().__init__()
+        self.name = self.__class__.__name__
+        self.requests = requests
+        self.results = results
+        logger.debug("Init")
+
+    def run(self):
+        logger.debug("Running")
+        keys = ('rising', 'transit', 'setting')
+        while True:
+            dct = self.requests.get()
+            self.requests.task_done()
+            if dct is None:
+                break
+            logger.debug('Request: {kind} for {body.name}'.format(**dct))
+            observer = ephem.city(CITY)
+            observer.date = ephem.Date(ephem.now() + ephem.minute)
+            method = getattr(observer, dct['kind'])
+            info = method(dct['body'])
+            args = zip(*[iter(info)] * 2)
+            for ((date, azalt), key) in zip(args, keys):
+                if date and azalt:
+                    d = dct.copy()
+                    d['date'] = date
+                    d['azalt'] = int(math.degrees(azalt))
+                    d['key'] = key
+                    d['reschedule'] = (key == 'setting')
+                    self.results.put(d)
+        logging.debug("Terminated")
 
 
 class Calculate:
@@ -131,12 +149,25 @@ class Calculate:
         self.all_bodies = self.except_stars + self.stars
         self.rst_events = []
 
+        # Start the thread that calculates rise, transit, set and
+        # earth satellite passes
+        self.rst_requests = queue.Queue()
+        self.rst_results = queue.Queue()
+        t = RiseTransitSetProcessor(self.rst_requests, self.rst_results)
+        t.start()
+
         def make_rst_request(body):
             for kind in ('next_rising', 'next_transit', 'next_setting'):
-                rst_requests.put({'body': body, 'kind': kind})
+                self.rst_requests.put({'body': body, 'kind': kind})
 
         [make_rst_request(body) for body in self.except_stars]
-        [rst_requests.put({'body':body, 'kind':'next_pass'})
+
+        # A different thread to handle Earth Satellites
+        self.pass_requests = queue.Queue()
+        t = SatellitePassProcessor(self.pass_requests, self.rst_results)
+        t.start()
+
+        [self.pass_requests.put({'body':body, 'kind':'next_pass'})
             for body in self.satellites
         ]
 
@@ -150,6 +181,13 @@ class Calculate:
             for comet in comets.values():
                 make_rst_request(comet)
 
+    def quit(self):
+        logger.debug("Quitting requested")
+        self.rst_requests.put(None)  # a poison pill for the thread
+        self.pass_requests.put(None)
+        self.rst_requests.join()  # wait for it to finish
+        self.pass_requests.join()
+        logger.debug("Quit")
 
     def compute(self):
         "Compute data for all bodies, not using the Observer"
@@ -189,8 +227,8 @@ class Calculate:
         # Add any newly calculated rst events to my list
         while True:
             try:
-                event = rst_results.get_nowait()
-                rst_results.task_done()
+                event = self.rst_results.get_nowait()
+                self.rst_results.task_done()
                 self.rst_events.append(event)
                 logger.debug('Added: {key} for {body.name}'.format(**event))
             except queue.Empty:
@@ -199,7 +237,8 @@ class Calculate:
         for event in reversed(self.rst_events):
             if event['date'] < self.date:
                 if event.get('reschedule', True):
-                    rst_requests.put(event)
+                    q = self.pass_requests if event['kind'] == 'next_pass' else self.rst_requests
+                    q.put(event)
                 logger.debug('Deleting: {key} for {body.name}'.format(**event))
                 self.rst_events.remove(event)
 
@@ -307,7 +346,7 @@ class Calculate:
     def update_rise_set(self, w):
         "Display rise, transit and set, ordered chronologically"
         w.addstr(2, 0, 'Rise, Transit and Set events={:5d} requests={:5d}'.format(
-            len(self.rst_events), rst_requests.qsize()))
+            len(self.rst_events), self.rst_requests.qsize()))
         for row, ev in enumerate(sorted(self.rst_events, key=operator.itemgetter('date'))):
             try:
                 w.addstr(row + 3, 0, *format_rise_transit_set(ev))
@@ -425,16 +464,17 @@ def main(w):
     except IndexError:
         cmd = 'p'
     calculate = Calculate(cmd)
-    producer_event = threading.Event()
-    t = threading.Thread(target=rst_producer,
-        args=(producer_event,), name='RST-Producer')
-    t.start()
+#     producer_event = threading.Event()
+#     t = threading.Thread(target=rst_producer,
+#         args=(producer_event,), name='RST-Producer')
+#     t.start()
 
     ord_commands = list(map(ord, COMMANDS))
     while True:
         try:
             ch = w.getch()
             if ch == ord('q'):
+                calculate.quit()
                 break
             if ch in ord_commands:
                 cmd = bytes([ch]).decode()
@@ -443,13 +483,12 @@ def main(w):
             w.refresh()
         except KeyboardInterrupt:
             break
-    producer_event.set()
     logger.info('Shutdown')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
         filename=os.path.expanduser('~/Library/Logs/astro-ctwin.log'),
-        format="%(asctime)s [%(name)s.%(funcName)s] %(levelname)s: %(message)s")
+        format="%(asctime)s [%(threadName)s:%(name)s.%(funcName)s] %(levelname)s: %(message)s")
     logging.captureWarnings(True)
     curses.wrapper(main)
 
