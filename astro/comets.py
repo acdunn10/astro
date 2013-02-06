@@ -1,10 +1,7 @@
 # -*- coding: utf8
-"""
-    Get and save information about the interesting list of comets
-    from the Minor Planet Center
-
-    python -m astro.comets will request and save newer comet data
-    whenever the data gets too old.
+""" Get and save up-to-date information about interesting comets.
+    We save the data locally and retrieve it again once it gets
+    too old. The data comes from the Minor Planet Center.
 
     Information about Comet C/2012 S1 (ISON):
         http://en.wikipedia.org/wiki/C/2012_S1
@@ -12,11 +9,13 @@
 """
 import ephem
 import requests
-import time
+import logging
 import datetime
 from .files import astro_config
 
-__all__ = ['Comets', 'save_comets']
+__all__ = ['Comets']
+
+logger = logging.getLogger(__name__)
 
 # A place to locally save Comet elements
 SOURCE = astro_config('comets.txt')
@@ -27,43 +26,38 @@ class Comets(dict):
     "A regular dictionary but with the last_modified info added"
     def __init__(self):
         super().__init__()
+        self.load()
+        logger.debug("Comet data last_modified: {0.last_modified}".format(self))
+        if ephem.now() - self.last_modified > MAXIMUM_AGE_DAYS:
+            if self.retrieve():
+                self.load()
+        logger.debug("{} comets loaded".format(len(self)))
+
+    def load(self):
+        self.clear()
         with open(SOURCE) as f:
             s = f.readline().strip()
-            t = time.strptime(s[7:], "%d %b %Y %H:%M:%S %Z")
             self.last_modified = ephem.Date(
-                datetime.datetime.fromtimestamp(time.mktime(t)))
+                datetime.datetime.strptime(
+                    s[7:], "%d %b %Y %H:%M:%S %Z"))
             for line in f:
                 if line.startswith('#'):
                     continue
                 name = line.split(',', 1)[0]
                 self[name] = ephem.readdb(line.strip())
 
-def save_comets():
-    "Request the comets and save locally for later use"
-    r = requests.get(URL)
-    if r.status_code == 200:
-        with open(SOURCE, 'w') as f:
-            f.write('# {}\n'.format(r.headers['Last-Modified']))
-            f.write(r.text)
+    def retrieve(self):
+        "Request the comets and save locally for later use"
+        logger.info("Retrieving new comet data")
+        r = requests.get(URL)
+        if r.status_code == 200:
+            with open(SOURCE, 'w') as f:
+                f.write('# {}\n'.format(r.headers['Last-Modified']))
+                f.write(r.text)
+        return r.status_code == 200
 
 
 if __name__ == '__main__':
-    INTERESTING_COMETS = (
-        'C/2012 S1 (ISON)',
-        'C/2011 L4 (PANSTARRS)',
-        )
+    logging.basicConfig(level=logging.DEBUG)
     comets = Comets()
-    print(len(comets), 'comets, last modified on', comets.last_modified)
-    if ephem.now() - comets.last_modified > MAXIMUM_AGE_DAYS:
-        print("Comet data is old, requesting newer data")
-        save_comets()
-    else:
-        observer = ephem.city('Columbus')
-        for name in INTERESTING_COMETS:
-            comet = comets[name]
-            comet.compute(observer)
-            print('--- Comet', comet.name)
-            print('Magnitude {0.mag:.1f}'.format(comet))
-            print('Distance from earth: {0.earth_distance:.5f} AU'.format(comet))
-            print('Azimuth: {0.az}   Altitude: {0.alt}'.format(comet))
 
