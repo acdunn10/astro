@@ -1,7 +1,6 @@
 # -*- coding: utf8
 
 import ephem
-from .comets import Comets
 from .satellites import EarthSatellites
 
 VISIBLE_PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,

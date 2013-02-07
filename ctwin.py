@@ -13,7 +13,7 @@ import time
 import warnings
 warnings.simplefilter('default')
 import ephem
-from astro import Comets
+from astro.comets import Comets, Asteroids
 from astro.utils import pairwise
 from astro.utils import format_angle as _
 from astro import miles_from_au
@@ -29,6 +29,7 @@ COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)',
           '273P/Pons-Gambart', 'C/2012 F6 (Lemmon)',
           'C/2006 S3 (LONEOS)',
          )
+ASTEROIDS = ('2012 DA14',)
 SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
 
 COMMANDS = 'adDemrp'
@@ -140,12 +141,15 @@ class Calculate:
         comet_dict = Comets()
         logger.info("Comets last-modified: {}".format(comet_dict.last_modified))
         self.comets = [comet_dict[name] for name in COMETS]
+        asteroid_dict = Asteroids()
+        logger.info("Asteroids last-modified: {}".format(asteroid_dict.last_modified))
+        self.asteroids = [asteroid_dict[name] for name in ASTEROIDS]
         sats = EarthSatellites()
         logger.info("Earth Satellites last-modified: {}".format(
             sats.last_modified))
         self.satellites = [sats[name] for name in SATELLITES]
         self.except_stars = [self.sun, self.moon] + \
-                            self.planets + self.comets
+                            self.planets + self.comets + self.asteroids
         self.all_bodies = self.except_stars + self.stars
         self.rst_events = []
 
@@ -262,7 +266,7 @@ class Calculate:
     def update_elongation(self, w):
         "Elongation for the planets and comets"
         w.addstr(2, 0, 'Elongation')
-        bodies = self.planets + self.comets
+        bodies = self.planets + self.comets + self.asteroids
         for row, body in enumerate(sorted(bodies, key=operator.attrgetter('elong'))):
             w.addstr(row + 3, 0,
                 "{} {:>13} {}".format(
