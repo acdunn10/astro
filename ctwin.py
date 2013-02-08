@@ -13,13 +13,11 @@ import time
 import warnings
 warnings.simplefilter('default')
 import ephem
-from astro.comets import Comets, Asteroids
-from astro.utils import pairwise
-from astro.utils import format_angle as _
-from astro import miles_from_au
 from astro import PLANETS, SYMBOLS, CITY
+from astro.comets import Comets, Asteroids
+from astro.utils import pairwise, miles_from_au, format_angle as _
 from ephem.stars import stars
-from astro import EarthSatellites
+from astro.satellites import EarthSatellites
 
 logger = logging.getLogger('astro')
 
@@ -32,10 +30,19 @@ COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)',
 ASTEROIDS = ('2012 DA14',)
 SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
 
-COMMANDS = 'adDemrp'
+COMMANDS = 'adDemrp?'
+TRANSIT_METHODS = ('next_transit', 'next_antitransit')
 
-# rst_requests = queue.Queue()  # stores rise-transit-set requests
-# rst_results = queue.Queue()  # computed rise, transit and set times.
+HELP = {
+    'a': 'Angular separation',
+    'd': 'Distance from Earth',
+    'D': 'Distance from the Sun',
+    'e': 'Elongation',
+    'm': 'Moon',
+    'r': 'Rise, Transit, Antitransit, Set and Satellite Passes',
+    'p': 'Position in the sky (azimuth and altitude)',
+    '?': 'Help',
+    }
 
 def format_rise_transit_set(dct):
     key = dct['key']
@@ -62,14 +69,6 @@ def m_to_mi(meters):
 
 def handle_body(dct, method):
     "Get next rising, transit or setting"
-    try:
-        dct['date'] = method(dct['body'])
-        azalt = dct['body'].alt if dct['kind'] == 'next_transit' else dct['body'].az
-        dct['azalt'] = int(math.degrees(azalt))
-        dct['key'] = dct['kind'].split('_')[1]
-        return dct
-    except ephem.CircumpolarError as e:
-        logger.error(str(e))
 
 class RiseTransitSetProcessor(threading.Thread):
     def __init__(self, requests, results):
@@ -90,9 +89,14 @@ class RiseTransitSetProcessor(threading.Thread):
             observer = ephem.city(CITY)
             observer.date = ephem.Date(ephem.now() + ephem.minute)
             method = getattr(observer, dct['kind'])
-            dct = handle_body(dct, method)
-            if dct is not None:
+            try:
+                dct['date'] = method(dct['body'])
+                azalt = dct['body'].alt if dct['kind'] in TRANSIT_METHODS else dct['body'].az
+                dct['azalt'] = int(math.degrees(azalt))
+                dct['key'] = dct['kind'].split('_')[1]
                 self.results.put(dct)
+            except ephem.CircumpolarError as e:
+                logger.error(str(e))
         logging.debug("Terminated")
 
 class SatellitePassProcessor(threading.Thread):
@@ -127,6 +131,26 @@ class SatellitePassProcessor(threading.Thread):
                     self.results.put(d)
         logging.debug("Terminated")
 
+class DistanceList(list):
+    "A list of distances, recalculated every minute"
+    def __init__(self, attr, title):
+        self.attr = attr
+        self.title = title
+        self.next_update = 0
+        super().__init__()
+
+    def update(self, date, bodies):
+        self.clear()
+        for body in bodies:
+            self.append(Distance(date, body, self.attr))
+        self.next_update = ephem.date(date + ephem.minute)
+
+    def display(self, w):
+        w.addstr(2, 0,
+            "{0.title}. Next update at {0.next_update}".format(self))
+        for row, obj in enumerate(sorted(self, key=operator.attrgetter('mph'))):
+            w.addstr(row + 3, 0, *obj.format())
+            w.clrtoeol()
 
 class Calculate:
     "Manage the display of data in the curses window"
@@ -152,24 +176,25 @@ class Calculate:
                             self.planets + self.comets + self.asteroids
         self.all_bodies = self.except_stars + self.stars
         self.rst_events = []
+        self.earth_distances = DistanceList('earth_distance', 'Earth Distances')
+        self.sun_distances = DistanceList('sun_distance', 'Sun Distances')
 
-        # Start the thread that calculates rise, transit, set and
-        # earth satellite passes
+        # Start the thread that calculates rise, transit, set
         self.rst_requests = queue.Queue()
         self.rst_results = queue.Queue()
-        t = RiseTransitSetProcessor(self.rst_requests, self.rst_results)
-        t.start()
+        RiseTransitSetProcessor(
+            self.rst_requests, self.rst_results).start()
 
         def make_rst_request(body):
-            for kind in ('next_rising', 'next_transit', 'next_setting'):
+            for kind in ('next_rising', 'next_setting') + TRANSIT_METHODS:
                 self.rst_requests.put({'body': body, 'kind': kind})
 
         [make_rst_request(body) for body in self.except_stars]
 
         # A different thread to handle Earth Satellites
         self.pass_requests = queue.Queue()
-        t = SatellitePassProcessor(self.pass_requests, self.rst_results)
-        t.start()
+        SatellitePassProcessor(
+            self.pass_requests, self.rst_results).start()
 
         [self.pass_requests.put({'body':body, 'kind':'next_pass'})
             for body in self.satellites
@@ -210,13 +235,13 @@ class Calculate:
             logger.debug("New command: {}".format(cmd))
         self.date = ephem.now()
         self.observer.date = self.date
-        w.addstr(0, 0, "{:%H:%M:%S} {:11.5f}".format(
-            ephem.localtime(self.date), self.date))
-        w.addstr(0, 40, COMMANDS)
+        w.addstr(0, 0, "{:%H:%M:%S} {:%H:%M:%S} UT {:11,.5f}".format(
+            ephem.localtime(self.date), self.date.datetime(), self.date))
+        w.addstr(0, 45, COMMANDS)
         if cmd == 'a':
             self.compute().update_angles(w)
         elif cmd == 'd':
-            self.compute().update_distance(w)
+            self.compute().update_earth_distance(w)
         elif cmd == 'D':
             self.compute().update_sun_distance(w)
         elif cmd == 'p':
@@ -227,7 +252,10 @@ class Calculate:
             self.compute().update_moon(w)
         elif cmd == 'e':
             self.compute().update_elongation(w)
+        elif cmd == '?':
+            self.help(w)
         self.cmd = cmd
+
         # Add any newly calculated rst events to my list
         while True:
             try:
@@ -246,6 +274,13 @@ class Calculate:
                 logger.debug('Deleting: {key} for {body.name}'.format(**event))
                 self.rst_events.remove(event)
 
+    def help(self, w):
+        w.addstr(2, 0, 'Help')
+        for row, letter in enumerate(COMMANDS):
+            try:
+                w.addstr(row + 3, 0, "{}: {}".format(letter, HELP[letter]))
+            except curses.error:
+                break
 
     def update_angles(self, w):
         "Display the closest angular separations"
@@ -273,23 +308,18 @@ class Calculate:
                     get_symbol(body), _(body.elong), body.name))
             w.clrtoeol()
 
-    def update_distance(self, w):
+    def update_earth_distance(self, w):
         "Distance and speed (relative to Earth) for objects of interest"
-        self._update_distance(w, 'earth_distance', 'Earth Distances')
+        if self.date >= self.earth_distances.next_update:
+            self.earth_distances.update(self.date, self.except_stars)
+        self.earth_distances.display(w)
 
     def update_sun_distance(self, w):
         "Distance and speed relative to Sun"
-        self._update_distance(w, 'sun_distance', 'Sun Distances')
+        if self.date >= self.sun_distances.next_update:
+            self.sun_distances.update(self.date, self.except_stars)
+        self.sun_distances.display(w)
 
-    def _update_distance(self, w, attr, title):
-        distances = (
-            Distance(self.date, body, attr)
-            for body in self.except_stars
-            )
-        w.addstr(2, 0, title)
-        for row, obj in enumerate(sorted(distances, key=operator.attrgetter('mph'))):
-            w.addstr(row + 3, 0, *obj.format())
-            w.clrtoeol()
 
     def update_position(self, w):
         "Display sky position"
@@ -468,10 +498,6 @@ def main(w):
     except IndexError:
         cmd = 'p'
     calculate = Calculate(cmd)
-#     producer_event = threading.Event()
-#     t = threading.Thread(target=rst_producer,
-#         args=(producer_event,), name='RST-Producer')
-#     t.start()
 
     ord_commands = list(map(ord, COMMANDS))
     while True:

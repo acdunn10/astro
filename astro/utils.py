@@ -4,6 +4,10 @@ import itertools
 import ephem
 import collections
 
+def miles_from_au(au):
+    return au * ephem.meters_per_au / 1609.344
+
+
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = itertools.tee(iterable)
@@ -11,7 +15,7 @@ def pairwise(iterable):
     return zip(a, b)
 
 RiseSet = collections.namedtuple('RiseSet',
-                                 'name rise_time rise_az set_time set_az')
+    'name rise_time rise_az set_time set_az')
 
 def generate_rise_set(body, observer, start_date=None, ending_date=None):
     """ Generate pairs of rise and set times for a given body
