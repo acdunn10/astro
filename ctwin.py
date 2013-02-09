@@ -6,6 +6,7 @@ import math
 import itertools
 import collections
 import logging
+import logging.handlers
 import subprocess
 import threading
 import queue
@@ -29,8 +30,9 @@ COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)',
          )
 ASTEROIDS = ('2012 DA14',)
 SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
+SPECIAL_STARS = ('Sirius',)
 
-COMMANDS = 'adDemrp?'
+COMMANDS = 'adDeLmrp?'
 TRANSIT_METHODS = ('next_transit', 'next_antitransit')
 
 HELP = {
@@ -38,6 +40,7 @@ HELP = {
     'd': 'Distance from Earth',
     'D': 'Distance from the Sun',
     'e': 'Elongation',
+    'L': 'Logging',
     'm': 'Moon',
     'r': 'Rise, Transit, Antitransit, Set and Satellite Passes',
     'p': 'Position in the sky (azimuth and altitude)',
@@ -156,12 +159,22 @@ class Calculate:
     "Manage the display of data in the curses window"
     def __init__(self, cmd):
         "Load up initial data, including the comets"
+        self.logging_queue = queue.Queue()
+        self.logging_counter = 0
+        handler = logging.handlers.QueueHandler(self.logging_queue)
+        formatter = logging.Formatter('%(asctime)s %(message)s')
+        handler.setFormatter(formatter)
+        handler.setLevel(logging.ERROR)
+        logger.addHandler(handler)
+        self.logging_messages = collections.deque([], 20)
+
         self.cmd = cmd
         self.observer = ephem.city(CITY)
         self.sun = ephem.Sun()
         self.moon = ephem.Moon()
         self.planets = [planet() for planet in PLANETS]
         self.stars = [ephem.star(name) for name in STARS]
+        self.special = [ephem.star(name) for name in SPECIAL_STARS]
         comet_dict = Comets()
         logger.info("Comets last-modified: {}".format(comet_dict.last_modified))
         self.comets = [comet_dict[name] for name in COMETS]
@@ -173,8 +186,10 @@ class Calculate:
             sats.last_modified))
         self.satellites = [sats[name] for name in SATELLITES]
         self.except_stars = [self.sun, self.moon] + \
-                            self.planets + self.comets + self.asteroids
+                            self.planets + self.comets + \
+                            self.asteroids
         self.all_bodies = self.except_stars + self.stars
+        self.everything = self.all_bodies + self.special
         self.rst_events = []
         self.earth_distances = DistanceList('earth_distance', 'Earth Distances')
         self.sun_distances = DistanceList('sun_distance', 'Sun Distances')
@@ -220,12 +235,12 @@ class Calculate:
 
     def compute(self):
         "Compute data for all bodies, not using the Observer"
-        [body.compute(self.date) for body in self.all_bodies]
+        [body.compute(self.date) for body in self.everything]
         return self
 
     def compute_observer(self):
         "Compute with the Observer"
-        [body.compute(self.observer) for body in self.all_bodies]
+        [body.compute(self.observer) for body in self.everything]
         return self
 
     def update(self, w, cmd):
@@ -235,8 +250,9 @@ class Calculate:
             logger.debug("New command: {}".format(cmd))
         self.date = ephem.now()
         self.observer.date = self.date
-        w.addstr(0, 0, "{:%H:%M:%S} {:%H:%M:%S} UT {:11,.5f}".format(
-            ephem.localtime(self.date), self.date.datetime(), self.date))
+        w.addstr(0, 0, "{:%H:%M:%S} {:%H:%M:%S} UT {:11,.5f} {:04d}".format(
+            ephem.localtime(self.date), self.date.datetime(),
+            self.date, self.logging_counter))
         w.addstr(0, 45, COMMANDS)
         if cmd == 'a':
             self.compute().update_angles(w)
@@ -254,6 +270,8 @@ class Calculate:
             self.compute().update_elongation(w)
         elif cmd == '?':
             self.help(w)
+        elif cmd == 'L':
+            self.logging(w)
         self.cmd = cmd
 
         # Add any newly calculated rst events to my list
@@ -273,6 +291,15 @@ class Calculate:
                     q.put(event)
                 logger.debug('Deleting: {key} for {body.name}'.format(**event))
                 self.rst_events.remove(event)
+        # the logging queue
+        while True:
+            try:
+                record = self.logging_queue.get_nowait()
+                self.logging_queue.task_done()
+                self.logging_counter += 1
+                self.logging_messages.append(record)
+            except queue.Empty:
+                break
 
     def help(self, w):
         w.addstr(2, 0, 'Help')
@@ -282,13 +309,21 @@ class Calculate:
             except curses.error:
                 break
 
+    def logging(self, w):
+        w.addstr(2, 0, "Logging")
+        for row, record in enumerate(self.logging_messages):
+            try:
+                w.addstr(row + 3, 0, record.getMessage())
+                w.clrtoeol()
+            except curses.error:
+                break
+
     def update_angles(self, w):
         "Display the closest angular separations"
         angles = (
             Separation(a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(self.all_bodies, 2)
             )
-        #angles = filter(lambda x:x.angle < MAX_ANGLE, angles)
         angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
         w.addstr(2, 0, 'Angular separation')
         for row, sep in enumerate(sorted(angles, key=operator.attrgetter('angle'))):
@@ -301,7 +336,8 @@ class Calculate:
     def update_elongation(self, w):
         "Elongation for the planets and comets"
         w.addstr(2, 0, 'Elongation')
-        bodies = self.planets + self.comets + self.asteroids
+        bodies = self.planets + self.comets + self.asteroids +\
+                 [self.moon] + self.special
         for row, body in enumerate(sorted(bodies, key=operator.attrgetter('elong'))):
             w.addstr(row + 3, 0,
                 "{} {:>13} {}".format(
@@ -325,7 +361,7 @@ class Calculate:
         "Display sky position"
         w.addstr(2, 0, 'Azimuth and Altitude')
         [body.compute(self.observer) for body in self.satellites]
-        bodies = self.except_stars + self.satellites
+        bodies = self.except_stars + self.satellites + self.special
         flag = 3
         for row, body in enumerate(sorted(bodies, key=operator.attrgetter('alt'), reverse=True)):
             try:
@@ -483,6 +519,7 @@ def growl(message):
         subprocess.call([growl_path, '-m', '"{}"'.format(message)])
     logger.info("Growl: '{}'".format(message))
 
+
 def main(w):
     "Initialize and then manage the event loop"
     logger.info('Startup')
@@ -491,6 +528,7 @@ def main(w):
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_BLACK)
     w.timeout(2000)
+
     try:
         cmd = sys.argv[1]
         if cmd not in COMMANDS:
