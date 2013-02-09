@@ -204,7 +204,7 @@ class Calculate:
             for kind in ('next_rising', 'next_setting') + TRANSIT_METHODS:
                 self.rst_requests.put({'body': body, 'kind': kind})
 
-        [make_rst_request(body) for body in self.except_stars]
+        [make_rst_request(body) for body in self.except_stars + self.special]
 
         # A different thread to handle Earth Satellites
         self.pass_requests = queue.Queue()
@@ -254,24 +254,27 @@ class Calculate:
             ephem.localtime(self.date), self.date.datetime(),
             self.date, self.logging_counter))
         w.addstr(0, 45, COMMANDS)
-        if cmd == 'a':
-            self.compute().update_angles(w)
-        elif cmd == 'd':
-            self.compute().update_earth_distance(w)
-        elif cmd == 'D':
-            self.compute().update_sun_distance(w)
-        elif cmd == 'p':
-            self.compute_observer().update_position(w)
-        elif cmd == 'r':
-            self.update_rise_set(w)
-        elif cmd == 'm':
-            self.compute().update_moon(w)
-        elif cmd == 'e':
-            self.compute().update_elongation(w)
-        elif cmd == '?':
-            self.help(w)
-        elif cmd == 'L':
-            self.logging(w)
+        try:
+            if cmd == 'a':
+                self.compute().update_angles(w)
+            elif cmd == 'd':
+                self.compute().update_earth_distance(w)
+            elif cmd == 'D':
+                self.compute().update_sun_distance(w)
+            elif cmd == 'p':
+                self.compute_observer().update_position(w)
+            elif cmd == 'r':
+                self.update_rise_set(w)
+            elif cmd == 'm':
+                self.compute().update_moon(w)
+            elif cmd == 'e':
+                self.compute().update_elongation(w)
+            elif cmd == '?':
+                self.help(w)
+            elif cmd == 'L':
+                self.logging(w)
+        except curses.error:
+            pass
         self.cmd = cmd
 
         # Add any newly calculated rst events to my list
@@ -304,19 +307,13 @@ class Calculate:
     def help(self, w):
         w.addstr(2, 0, 'Help')
         for row, letter in enumerate(COMMANDS):
-            try:
-                w.addstr(row + 3, 0, "{}: {}".format(letter, HELP[letter]))
-            except curses.error:
-                break
+            w.addstr(row + 3, 0, "{}: {}".format(letter, HELP[letter]))
 
     def logging(self, w):
         w.addstr(2, 0, "Logging")
         for row, record in enumerate(self.logging_messages):
-            try:
-                w.addstr(row + 3, 0, record.getMessage())
-                w.clrtoeol()
-            except curses.error:
-                break
+            w.addstr(row + 3, 0, record.getMessage())
+            w.clrtoeol()
 
     def update_angles(self, w):
         "Display the closest angular separations"
@@ -327,10 +324,7 @@ class Calculate:
         angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
         w.addstr(2, 0, 'Angular separation')
         for row, sep in enumerate(sorted(angles, key=operator.attrgetter('angle'))):
-            try:
-                w.addstr(row + 3, 0, *sep.format())
-            except curses.error:
-                break
+            w.addstr(row + 3, 0, *sep.format())
             w.clrtoeol()
 
     def update_elongation(self, w):
@@ -364,14 +358,11 @@ class Calculate:
         bodies = self.except_stars + self.satellites + self.special
         flag = 3
         for row, body in enumerate(sorted(bodies, key=operator.attrgetter('alt'), reverse=True)):
-            try:
-                if flag == 3 and body.alt < 0:  # first body below horizon
-                    w.hline(row + flag, 0, '-', 60)
-                    flag = 4
-                w.addstr(row + flag, 0, *format_sky_position(body))
-                w.clrtoeol()
-            except curses.error:
-                break
+            if flag == 3 and body.alt < 0:  # first body below horizon
+                w.hline(row + flag, 0, '-', 60)
+                flag = 4
+            w.addstr(row + flag, 0, *format_sky_position(body))
+            w.clrtoeol()
         w.clrtobot()
 
     def update_moon(self, w):
@@ -418,11 +409,8 @@ class Calculate:
         w.addstr(2, 0, 'Rise, Transit and Set events={:5d} requests={:5d}'.format(
             len(self.rst_events), self.rst_requests.qsize()))
         for row, ev in enumerate(sorted(self.rst_events, key=operator.itemgetter('date'))):
-            try:
-                w.addstr(row + 3, 0, *format_rise_transit_set(ev))
-                w.clrtoeol()
-            except curses.error:
-                break
+            w.addstr(row + 3, 0, *format_rise_transit_set(ev))
+            w.clrtoeol()
 
 
 def format_sky_position(body):
