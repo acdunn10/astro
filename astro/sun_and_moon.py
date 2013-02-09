@@ -15,7 +15,8 @@ import os
 import ephem
 from math import degrees
 import itertools
-from . import CITY, miles_from_au
+from . import CITY
+from .utils import miles_from_au
 
 
 observer = ephem.city(CITY)
