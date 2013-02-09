@@ -16,7 +16,7 @@ import ephem
 import requests
 import logging
 import datetime
-from .files import astro_config
+from . import astro_config
 
 __all__ = ['Comets', 'Asteroids']
 

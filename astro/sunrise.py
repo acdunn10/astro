@@ -28,6 +28,7 @@ if __name__ == '__main__':
     for info in generate_rise_set(ephem.Sun(), ephem.city(CITY),
                                   start_date, end_date):
         r, s = map(ephem.localtime, (info.rise_time, info.set_time))
-        daylight = datetime.timedelta(seconds=int(86400 * (info.set - info.rise)))
+        daylight = datetime.timedelta(
+            seconds=int(86400 * (info.set_time - info.rise_time)))
         print('{0:%Y-%m-%d} {0:%H:%M:%S} {2.rise_az} {1:%H:%M:%S} {2.set_az} {3}'.format(
                 r, s, info, daylight))
