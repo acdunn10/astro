@@ -164,7 +164,7 @@ class Calculate:
         handler = logging.handlers.QueueHandler(self.logging_queue)
         formatter = logging.Formatter('%(asctime)s %(message)s')
         handler.setFormatter(formatter)
-        handler.setLevel(logging.ERROR)
+        handler.setLevel(logging.INFO)
         logger.addHandler(handler)
         self.logging_messages = collections.deque([], 20)
 
