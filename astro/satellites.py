@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # where we locally save Space Station elements
 SOURCE = astro_config('satellites.txt')
 URL = 'http://celestrak.com/NORAD/elements/visual.txt'
-MAXIMUM_AGE_DAYS = 3
+MAXIMUM_AGE_DAYS = 1
 
 class EarthSatellites(dict):
     "A dictionary but with last_modified info added"

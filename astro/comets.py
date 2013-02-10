@@ -22,7 +22,7 @@ __all__ = ['Comets', 'Asteroids']
 
 logger = logging.getLogger(__name__)
 
-MAXIMUM_AGE_DAYS = 5
+MAXIMUM_AGE_DAYS = 1
 
 class Comets(dict):
     "A regular dictionary but with the last_modified info added"
