@@ -14,7 +14,7 @@ import time
 import warnings
 warnings.simplefilter('default')
 import ephem
-from astro import PLANETS, SYMBOLS, CITY
+from astro import PLANETS, SYMBOLS, CITY, COMETS
 from astro.comets import Comets, Asteroids
 from astro.utils import pairwise, miles_from_au, format_angle as _
 from ephem.stars import stars
@@ -24,24 +24,9 @@ logger = logging.getLogger('astro')
 
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
-COMETS = (
-    # comets of special interest this year:
-    'C/2011 L4 (PANSTARRS)',
-    'C/2012 S1 (ISON)',
-    # comets currently brighter than mag. 14, according
-    # to <http://heavens-above.com/>
-    'C/2012 F6 (Lemmon)',
-    'C/2012 T5 (Bressi)',
-    'C/2012 J1 (Catalina)',
-    '273P/Pons-Gambart',
-    'C/2010 S1 (LINEAR)',
-    'C/2012 K5 (LINEAR)',
-    # other Comets
-    'C/1995 O1 (Hale-Bopp)',
-    )
 ASTEROIDS = ('2012 DA14',)
 SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
-SPECIAL_STARS = ('Sirius',)
+SPECIAL_STARS = ('Sirius',)  # I just like this one
 
 COMMANDS = 'adDeLmrp?'
 TRANSIT_METHODS = ('next_transit', 'next_antitransit')
