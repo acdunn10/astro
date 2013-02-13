@@ -173,23 +173,26 @@ class Calculate:
         self.special = [ephem.star(name) for name in SPECIAL_STARS]
         comet_dict = Comets()
         logger.info("Comets last-modified: {}".format(comet_dict.last_modified))
-        self.comets = []
-        for name in COMETS:
-            if name in comet_dict:
-                self.comets[name] = comet_dict[name]
+        self.comets = [
+            comet_dict[name]
+            for name in COMETS
+            if name in comet_dict
+            ]
         asteroid_dict = Asteroids()
         logger.info("Asteroids last-modified: {}".format(asteroid_dict.last_modified))
-        self.asteroids = []
-        for name in ASTEROIDS:
-            if name in asteroid_dict:
-                self.asteroids[name] = asteroid_dict[name]
+        self.asteroids = [
+            asteroid_dict[name]
+            for name in ASTEROIDS
+            if name in asteroid_dict
+            ]
         sats = EarthSatellites()
         logger.info("Earth Satellites last-modified: {}".format(
             sats.last_modified))
-        self.satellites = []
-        for name in SATELLITES:
-            if name in sats:
-                self.satellites[name] = sats[name]
+        self.satellites = [
+            sats[name]
+            for name in SATELLITES
+            if name in sats
+            ]
         self.except_stars = [self.sun, self.moon] + \
                             self.planets + self.comets + \
                             self.asteroids
