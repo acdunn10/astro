@@ -34,25 +34,31 @@ class EarthSatellites(dict):
 
     def load(self):
         self.clear()
-        with open(SOURCE) as f:
-            s = f.readline().strip()
-            self.last_modified = ephem.Date(
-                datetime.datetime.strptime(
-                    s[7:], "%d %b %Y %H:%M:%S %Z"))
-            lines = [line.strip() for line in f]
-            args = [iter(lines)] * 3
-            for name, line1, line2 in zip(*args):
-                self[name] = ephem.readtle(name, line1, line2)
+        try:
+            with open(SOURCE) as f:
+                s = f.readline().strip()
+                self.last_modified = ephem.Date(
+                    datetime.datetime.strptime(
+                        s[7:], "%d %b %Y %H:%M:%S %Z"))
+                lines = [line.strip() for line in f]
+                args = [iter(lines)] * 3
+                for name, line1, line2 in zip(*args):
+                    self[name] = ephem.readtle(name, line1, line2)
+        except FileNotFoundError:
+            self.last_modified = 0
 
     def retrieve(self):
         logger.info("Retrieving new EarthSatellite data")
-        r = requests.get(URL)
-        if r.status_code == 200:
-            with open(SOURCE, 'w') as f:
-                f.write('# {}\r\n'.format(r.headers['Last-Modified']))
-                f.write(r.text)
-        return r.status_code == 200
-
+        try:
+            r = requests.get(URL)
+            if r.status_code == 200:
+                with open(SOURCE, 'w') as f:
+                    f.write('# {}\r\n'.format(r.headers['Last-Modified']))
+                    f.write(r.text)
+            return r.status_code == 200
+        except requests.exceptions.RequestException as e:
+            logger.error(str(e))
+        return False
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

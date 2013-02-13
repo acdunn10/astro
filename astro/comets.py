@@ -40,26 +40,33 @@ class Comets(dict):
 
     def load(self):
         self.clear()
-        with open(self.SOURCE) as f:
-            s = f.readline().strip()
-            self.last_modified = ephem.Date(
-                datetime.datetime.strptime(
-                    s[7:], "%d %b %Y %H:%M:%S %Z"))
-            for line in f:
-                if line.startswith('#'):
-                    continue
-                name = line.split(',', 1)[0]
-                self[name] = ephem.readdb(line.strip())
+        try:
+            with open(self.SOURCE) as f:
+                s = f.readline().strip()
+                self.last_modified = ephem.Date(
+                    datetime.datetime.strptime(
+                        s[7:], "%d %b %Y %H:%M:%S %Z"))
+                for line in f:
+                    if line.startswith('#'):
+                        continue
+                    name = line.split(',', 1)[0]
+                    self[name] = ephem.readdb(line.strip())
+        except FileNotFoundError:
+            self.last_modified = 0
 
     def retrieve(self):
         "Request the comets and save locally for later use"
         logger.info("Retrieving new comet data")
-        r = requests.get(self.URL)
-        if r.status_code == 200:
-            with open(self.SOURCE, 'w') as f:
-                f.write('# {}\n'.format(r.headers['Last-Modified']))
-                f.write(r.text)
-        return r.status_code == 200
+        try:
+            r = requests.get(self.URL)
+            if r.status_code == 200:
+                with open(self.SOURCE, 'w') as f:
+                    f.write('# {}\n'.format(r.headers['Last-Modified']))
+                    f.write(r.text)
+            return r.status_code == 200
+        except requests.exceptions.RequestException as e:
+            logger.error(str(e))
+        return False
 
 class Asteroids(dict):
     "A regular dictionary but with the last_modified info added"
@@ -94,13 +101,16 @@ class Asteroids(dict):
     def retrieve(self):
         "Request the asteroids and save locally for later use"
         logger.info("Retrieving new asteroid data")
-        r = requests.get(self.URL)
-        if r.status_code == 200:
-            with open(self.SOURCE, 'w') as f:
-                f.write('# {}\n'.format(r.headers['Last-Modified']))
-                f.write(r.text)
-        return r.status_code == 200
-
+        try:
+            r = requests.get(self.URL)
+            if r.status_code == 200:
+                with open(self.SOURCE, 'w') as f:
+                    f.write('# {}\n'.format(r.headers['Last-Modified']))
+                    f.write(r.text)
+            return r.status_code == 200
+        except requests.exceptions.RequestException as e:
+            logger.error(str(e))
+        return False
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
