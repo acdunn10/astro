@@ -24,7 +24,7 @@ logger = logging.getLogger('astro')
 
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
-ASTEROIDS = ('2012 DA14',)
+ASTEROIDS = ('2012 DA14', '3753 Cruithne')
 SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
 SPECIAL_STARS = ('Sirius',)  # I just like this one
 
