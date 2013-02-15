@@ -14,11 +14,13 @@ import time
 import warnings
 warnings.simplefilter('default')
 import ephem
-from astro import PLANETS, SYMBOLS, CITY, COMETS
+from astro import PLANETS, SYMBOLS, COMETS
 from astro.comets import Comets, Asteroids
 from astro.utils import pairwise, miles_from_au, format_angle as _
 from ephem.stars import stars
 from astro.satellites import EarthSatellites
+import requests
+import json
 
 logger = logging.getLogger('astro')
 
@@ -28,7 +30,7 @@ ASTEROIDS = ('2012 DA14', '3753 Cruithne')
 SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
 SPECIAL_STARS = ('Sirius',)  # I just like this one
 
-COMMANDS = 'adDeLmrp?'
+COMMANDS = 'adDeLmrp!?'
 TRANSIT_METHODS = ('next_transit', 'next_antitransit')
 
 HELP = {
@@ -40,6 +42,7 @@ HELP = {
     'm': 'Moon',
     'r': 'Rise, Transit, Antitransit, Set and Satellite Passes',
     'p': 'Position in the sky (azimuth and altitude)',
+    '!': 'Request and use current location',
     '?': 'Help',
     }
 
@@ -65,9 +68,32 @@ def format_rise_transit_set(dct):
 def m_to_mi(meters):
     return meters / 1609.344
 
+class _Observer:
+    def __init__(self):
+        self.default = ephem.city('Columbus')
+        self.current = None
 
-def handle_body(dct, method):
-    "Get next rising, transit or setting"
+    def __call__(self):
+        if self.current is not None:
+            return self.current
+        return self.default
+
+    def update(self):
+        url = os.environ.get('LOCATION_URL', None)
+        if url is not None:
+            try:
+                r = requests.get(url, params={'format': 'json'})
+                if r.status_code == 200:
+                    data = json.loads(str(r.content, 'utf-8'))
+                    data = data['objects'][0]
+                    observer = ephem.Observer()
+                    observer.lat = str(data['latitude'])
+                    observer.lon = str(data['longitude'])
+                    self.current = observer
+            except requests.exceptions.RequestException as e:
+                logger.error(str(e))
+
+Observer = _Observer()
 
 class RiseTransitSetProcessor(threading.Thread):
     def __init__(self, requests, results):
@@ -85,7 +111,7 @@ class RiseTransitSetProcessor(threading.Thread):
             if dct is None:
                 break
             logger.debug('Request: {kind} for {body.name}'.format(**dct))
-            observer = ephem.city(CITY)
+            observer = Observer()
             observer.date = ephem.Date(ephem.now() + ephem.minute)
             method = getattr(observer, dct['kind'])
             try:
@@ -115,7 +141,7 @@ class SatellitePassProcessor(threading.Thread):
             if dct is None:
                 break
             logger.debug('Request: {kind} for {body.name}'.format(**dct))
-            observer = ephem.city(CITY)
+            observer = Observer()
             observer.date = ephem.Date(ephem.now() + ephem.minute)
             method = getattr(observer, dct['kind'])
             info = method(dct['body'])
@@ -165,7 +191,7 @@ class Calculate:
         self.logging_messages = collections.deque([], 20)
 
         self.cmd = cmd
-        self.observer = ephem.city(CITY)
+        self.observer = Observer()
         self.sun = ephem.Sun()
         self.moon = ephem.Moon()
         self.planets = [planet() for planet in PLANETS]
@@ -253,6 +279,10 @@ class Calculate:
 
     def update(self, w, cmd):
         "Update the window to display the specified info"
+        if cmd == '!':
+            Observer.update()
+            cmd = self.cmd
+        self.observer = Observer()
         if cmd != self.cmd:
             w.erase()
             logger.debug("New command: {}".format(cmd))
@@ -262,6 +292,9 @@ class Calculate:
             ephem.localtime(self.date), self.date.datetime(),
             self.date, self.logging_counter))
         w.addstr(0, 45, COMMANDS)
+        w.addstr(1, 8, "Location: Lat {}  Lon {}".format(
+            _(self.observer.lat), _(self.observer.lon)))
+
         try:
             if cmd == 'a':
                 self.compute().update_angles(w)
@@ -396,7 +429,7 @@ class Calculate:
         w.addstr(3, 0,
             'Earth distance:    {:13,.0f} miles, {:+5.0f} mph'.format(
                 distance, moved), curses.color_pair(color))
-        observer = ephem.city(CITY)
+        observer = Observer()
         observer.date = self.date
         moon.compute(observer)
         m2 = moon.copy()
