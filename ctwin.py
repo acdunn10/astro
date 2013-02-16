@@ -394,7 +394,7 @@ class Calculate:
 
     def update_position(self, w):
         "Display sky position"
-        w.addstr(2, 0, 'Azimuth and Altitude')
+        w.addstr(2, 0, 'Altitude and Azimuth')
         [body.compute(self.observer) for body in self.satellites]
         bodies = self.except_stars + self.satellites + self.special
         flag = 3
