@@ -29,7 +29,11 @@ CITY = 'Columbus'  # my default city
 STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
 
-COMETS = ('C/2012 S1 (ISON)', 'C/2011 L4 (PANSTARRS)')
+COMETS = (
+    'C/2012 S1 (ISON)',
+    'C/2011 L4 (PANSTARRS)',
+    'C/2013 A1 (Siding Spring)',
+    )
 
 def astro_config(name):
     "A folder to store stuff we download"
