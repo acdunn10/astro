@@ -2,6 +2,7 @@
 # -*- coding: utf8
 import os
 import operator
+import collections
 import itertools
 import cherrypy
 import ephem
@@ -9,6 +10,9 @@ from ephem.stars import stars
 import logging_tree
 from django.template import loader
 from django.conf import settings
+import astro
+import astro.comets
+import astro.satellites
 
 SYMBOLS = {
     'Sun': '☼',
@@ -42,7 +46,12 @@ STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
          'Regulus', 'Nunki', 'Alcyone', 'Elnath')
 ASTEROIDS = ('3753 Cruithne', )
 SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
-SPECIAL_STARS = ('Sirius',)  # I just like this one
+SPECIAL_STARS = ('Sirius', 'Vega')
+COMETS = (
+    'C/2012 S1 (ISON)',
+    'C/2011 L4 (PANSTARRS)',
+    'C/2013 A1 (Siding Spring)',
+    )
 
 DMS = """° ’ ”""".split()
 HMS = """h ,m ,s""".split(',')
@@ -65,10 +74,6 @@ def get_symbol(body):
     return SYMBOLS.get(key, '?')
 
 
-
-class Observer:
-    default = ephem.city('Columbus')
-
 class SolarSystemBody:
     @cherrypy.expose
     def index(self):
@@ -87,24 +92,35 @@ class Moon(SolarSystemBody):
     body = ephem.Moon()
 
 
+
 class Astro:
     def __init__(self):
-        self.planets = [planet() for planet in PLANETS]
-        self.sun = ephem.Sun()
-        self.moon = ephem.Moon()
-        self.stars = [ephem.star(name) for name in STARS]
-        self.special = [ephem.star(name) for name in SPECIAL_STARS]
-        self.comets = []
-        self.asteroids = []
-        self.satellites = []
+        comets = astro.comets.Comets()
+        asteroids = astro.comets.Asteroids()
+        satellites = astro.satellites.EarthSatellites()
+        self.body_names = collections.ChainMap(stars, comets, asteroids, satellites)
+        self.default_bodies = (ephem.Sun, ephem.Moon, PLANETS,
+                               SPECIAL_STARS, ASTEROIDS, SATELLITES,
+                               COMETS)
+        self.solar_system = (ephem.Sun, ephem.Moon, PLANETS,
+                             SPECIAL_STARS, ASTEROIDS, COMETS)
 
-        self.except_stars = [self.sun, self.moon] + \
-                            self.planets + self.comets + \
-                            self.asteroids
-        self.all_bodies = self.except_stars + self.stars
-        self.everything = self.all_bodies + self.special
-        self.sky_bodies = self.except_stars + \
-            self.satellites + self.special
+    def compute(self, parameter, *args):
+        "parameter is either an Observer or a date"
+        for arg in args:
+            if isinstance(arg, (list, tuple)):
+                yield from self.compute(parameter, *arg)
+            else:
+                if isinstance(arg, type):
+                    body = arg()
+                elif isinstance(arg, str):
+                    try:
+                        body = self.body_names[arg]
+                    except KeyError:
+                        cherrypy.log("compute doesn't know about {}".format(arg))
+                        continue
+                body.compute(parameter)
+                yield body
 
     @cherrypy.expose
     def index(self):
@@ -116,29 +132,64 @@ class Astro:
 
     @cherrypy.expose
     def sky(self):
-        observer = Observer.default
+        observer = ephem.city(OBSERVER)
         observer.date = ephem.now()
-        body_list = self.sky_bodies
-        [body.compute(observer) for body in body_list]
+        bodies = self.compute(observer, *self.default_bodies)
         response = [
             "{} {:>12} {:>12} {}".format(get_symbol(body), _(body.alt),
                 _(body.az), body.name)
-            for body in sorted(body_list,
+            for body in sorted(bodies,
                 key=operator.attrgetter('alt'), reverse=True)
         ]
         return plain(response)
 
     @cherrypy.expose
     def elongation(self):
-        body_list = self.planets + self.comets + self.asteroids +\
-            [self.moon] + self.special
-        [body.compute(ephem.now()) for body in body_list]
+        bodies = self.compute(ephem.now(), self.solar_system)
         response = [
             "{} {:>13} {}".format(
                 get_symbol(body), _(body.elong), body.name)
-            for body in sorted(body_list, key=operator.attrgetter('elong'))
+            for body in sorted(bodies, key=operator.attrgetter('elong'))
         ]
         return plain(response)
+
+    @cherrypy.expose
+    def angles(self):
+        bodies = self.compute(ephem.now(), self.solar_system, STARS)
+        angles = (
+            Separation(a, b, ephem.separation(a, b))
+            for a, b in itertools.combinations(bodies, 2)
+            )
+        angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
+        angles = filter(lambda x:x.angle < ephem.degrees('30'), angles)
+        response = [
+            str(sep)
+            for sep in sorted(angles, key=operator.attrgetter('angle'))
+            ]
+        return plain(response)
+
+class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
+    "Manage info about the angular separation between two bodies"
+    def is_two_stars(self):
+        return all([isinstance(self.body1, ephem.FixedBody),
+                   isinstance(self.body2, ephem.FixedBody)])
+
+    def trend(self):
+        "Returns True if the two bodies are getting closer"
+        arrows = "UD" #
+        a = self.body1.copy()
+        b = self.body2.copy()
+        later = ephem.now() + ephem.hour
+        a.compute(later)
+        b.compute(later)
+        return ephem.separation(a, b) < self.angle
+
+    def __str__(self):
+        "Formatting details for update_angles"
+        return "{1:>12}  {2}  {0.body1.name} ⇔ {3} {0.body2.name} ({4})".format(
+            self, _(self.angle), get_symbol(self.body1),
+            get_symbol(self.body2),
+            ephem.constellation(self.body2)[1])
 
 def plain(response):
     s = '\n'.join(response) if isinstance(response, list) else response
