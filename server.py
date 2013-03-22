@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.3
 # -*- coding: utf8
 import os
+import math
 import operator
 import collections
 import itertools
@@ -54,6 +55,7 @@ COMETS = (
     'C/2011 L4 (PANSTARRS)',
     'C/2013 A1 (Siding Spring)',
     )
+RISE_KINDS = ('next_rising', 'next_setting', 'next_transit', 'next_antitransit')
 
 DMS = """° ’ ”""".split()
 HMS = """h ,m ,s""".split(',')
@@ -94,7 +96,6 @@ class Moon(SolarSystemBody):
     body = ephem.Moon()
 
 
-
 class Astro:
     def __init__(self):
         comets = astro.comets.Comets()
@@ -107,22 +108,62 @@ class Astro:
         self.solar_system = (ephem.Sun, ephem.Moon, PLANETS,
                              SPECIAL_STARS, ASTEROIDS, COMETS)
 
-    def compute(self, parameter, *args):
-        "parameter is either an Observer or a date"
+    def body_generator(self, *args):
+        "individual bodies, e.g., Sun, Moon, or lists, e.g. PLANETS"
         for arg in args:
             if isinstance(arg, (list, tuple)):
-                yield from self.compute(parameter, *arg)
+                yield from self.body_generator(*arg)
             else:
                 if isinstance(arg, type):
-                    body = arg()
+                    yield arg()
                 elif isinstance(arg, str):
                     try:
-                        body = self.body_names[arg]
+                        yield self.body_names[arg]
                     except KeyError:
                         cherrypy.log("compute doesn't know about {}".format(arg))
                         continue
-                body.compute(parameter)
-                yield body
+
+    def compute(self, parameter, *args):
+        "parameter is either an Observer or a date"
+        for body in self.body_generator(args):
+            body.compute(parameter)
+            yield body
+
+    def rise_transit_set(self, date, *args):
+        observer = ephem.city(OBSERVER)
+        observer.date = date
+        for body in self.body_generator(args):
+            if isinstance(body, ephem.EarthSatellite):
+                kind = 'next_pass'
+                method = getattr(observer, kind)
+                info = method(body)
+                args = zip(*[iter(info)] * 2)
+                keys = ('rising', 'transit', 'setting')
+                for ((date, azalt), key) in zip(args, keys):
+                    if date and azalt:
+                        yield {
+                            'body': body,
+                            'kind': kind,
+                            'date': date,
+                            'azalt': int(math.degrees(azalt)),
+                            'key': key,
+                            }
+            else:
+                for kind in RISE_KINDS:
+                    method = getattr(observer, kind)
+                    try:
+                        event_date = method(body)
+                        azalt = body.alt if 'transit' in kind else body.az
+                        key = kind.split('_')[1]
+                        yield {
+                            'body': body,
+                            'kind': kind,
+                            'date': event_date,
+                            'azalt': azalt,
+                            'key': key,
+                            }
+                    except ephem.CircumpolarError as e:
+                        cherrypy.log(str(e))
 
     @cherrypy.expose
     def index(self):
@@ -224,9 +265,12 @@ class Astro:
 
     @cherrypy.expose
     def horizon(self):
+        bodies = [ephem.Sun, ephem.Moon, PLANETS, ASTEROIDS,
+                  COMETS, SPECIAL_STARS, SATELLITES]
+        events = self.rise_transit_set(ephem.now(), bodies)
         response = [
             format_rise_transit_set(event)
-            for event in sorted(self.rst_events, key=operator.itemgetter('date'))
+            for event in sorted(events, key=operator.itemgetter('date'))
             ]
         return plain(response)
 
@@ -243,20 +287,17 @@ def format_rise_transit_set(dct):
     else:
         color = 0
 
-    return (
-        get_symbol(dct['body']),
-        "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
-        "{:^7}".format(key),
-        dct['body'].name,
-        "{}°".format(dct['azalt']),
-        )
+#     return (
+#         get_symbol(dct['body']),
+#         "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
+#         "{:^7}".format(key),
+#         dct['body'].name,
+#         "{}°".format(dct['azalt']),
+#         )
 
-    return (
-        "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
+    return "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
             get_symbol(dct['body']), ephem.localtime(dct['date']), key,
-            dct['body'].name, dct['azalt']),
-        curses.color_pair(color)
-        )
+            dct['body'].name, dct['azalt'])
 
 
 class Distance:
