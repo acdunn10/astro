@@ -13,6 +13,7 @@ from django.conf import settings
 import astro
 import astro.comets
 import astro.satellites
+import astro.utils
 
 SYMBOLS = {
     'Sun': '☼',
@@ -162,11 +163,59 @@ class Astro:
             )
         angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
         angles = filter(lambda x:x.angle < ephem.degrees('30'), angles)
-        response = [
-            str(sep)
-            for sep in sorted(angles, key=operator.attrgetter('angle'))
-            ]
-        return plain(response)
+        return loader.render_to_string('angles.html', {
+            'angles': sorted(angles, key=operator.attrgetter('angle')),
+            })
+#         response = [
+#             str(sep)
+#             for sep in sorted(angles, key=operator.attrgetter('angle'))
+#             ]
+#         return plain(response)
+
+    @cherrypy.expose
+    def distance(self, **kwargs):
+        attr = kwargs.get('p', 'earth_distance')  # or sun_distance
+        date = ephem.now()
+        bodies = [ephem.Moon, PLANETS, ASTEROIDS, COMETS]
+        if attr == 'earth_distance':
+            bodies.append(ephem.Sun)
+        distances = (
+            Distance(date, body, attr)
+            for body in self.compute(date, bodies)
+            )
+        return loader.render_to_string('distance.html', {
+            'distances': sorted(distances, key=operator.attrgetter('mph')),
+            })
+#         response = [
+#             str(distance)
+#             for distance in sorted(distances, key=operator.attrgetter('mph'))
+#             ]
+#         return plain(response)
+
+class Distance:
+    "Manage info about the distance between two bodies"
+    def __init__(self, date, body, attr):
+        self.body = body
+        self.miles = astro.utils.miles_from_au(getattr(body, attr))
+        x = body.copy()
+        x.compute(ephem.date(date + ephem.hour))
+        moved = astro.utils.miles_from_au(getattr(x, attr)) - self.miles
+        self.trend = moved < 0
+        self.mph = abs(moved)
+
+    def __str__(self):
+        return "{0.mph:8,.0f} mph {0.miles:13,.0f} {1} {0.body.name}".format(
+                self, get_symbol(self.body))
+
+    def as_columns(self):
+        "makes the table display easier"
+        return (
+            "{0.mph:8,.0f} mph".format(self),
+            "{0.miles:13,.0f} miles".format(self),
+            get_symbol(self.body),
+            "{0.body.name}".format(self)
+            )
+
 
 class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
     "Manage info about the angular separation between two bodies"

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block extrastyle %}
+<style>
+.table tbody tr.closer > td {
+    background-color: #FF7A6A;
+}
+.table tbody tr.further > td {
+    background-color: #8FFFA2;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<table class="table table-bordered table-condensed">
+<tbody>
+{% for angle in angles %}
+    <tr class="{% if angle.trend %}closer{% else %}further{% endif %}">
+    <td>{{ angle }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}
