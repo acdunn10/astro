@@ -179,12 +179,15 @@ class Astro:
         observer.date = ephem.now()
         bodies = self.compute(observer, *self.default_bodies)
         response = [
-            "{} {:>12} {:>12} {}".format(get_symbol(body), _(body.alt),
-                _(body.az), body.name)
+            format_sky_position(body)
             for body in sorted(bodies,
-                key=operator.attrgetter('alt'), reverse=True)
+                    key=operator.attrgetter('alt'), reverse=True)
         ]
-        return plain(response)
+        return loader.render_to_string('sky.html', {
+            'bodies': response,
+            'date': observer.date,
+            'local': ephem.localtime(observer.date)
+            })
 
     @cherrypy.expose
     def elongation(self):
@@ -203,8 +206,8 @@ class Astro:
             Separation(a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(bodies, 2)
             )
-        angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
-        angles = filter(lambda x:x.angle < ephem.degrees('30'), angles)
+        #angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
+        angles = filter(lambda x:x.angle < ephem.degrees('20'), angles)
         return loader.render_to_string('angles.html', {
             'angles': sorted(angles, key=operator.attrgetter('angle')),
             })
@@ -267,15 +270,52 @@ class Astro:
     def horizon(self):
         bodies = [ephem.Sun, ephem.Moon, PLANETS, ASTEROIDS,
                   COMETS, SPECIAL_STARS, SATELLITES]
-        events = self.rise_transit_set(ephem.now(), bodies)
+        events = list(self.rise_transit_set(ephem.now(), bodies))
+        events.sort(key=operator.itemgetter('date'))
         response = [
             format_rise_transit_set(event)
-            for event in sorted(events, key=operator.itemgetter('date'))
+            for event in events
             ]
-        #return plain(response)
+        seconds_to_next_event = 86400 * (events[0]['date'] - ephem.now())
         return loader.render_to_string('horizon.html', {
             'events': response,
+            'seconds_to_next_event': min(10, seconds_to_next_event),
             })
+
+def m_to_mi(meters):
+    return meters / 1609.344
+
+def format_sky_position(body):
+    if body.name == 'Sun':
+        color = 'sun'
+    elif isinstance(body, ephem.EarthSatellite):
+        color = 'satellite'
+    elif body.alt < 0:
+        color = 'below'
+    else:
+        color = 'ascending' if body.az < ephem.degrees('180') else 'descending'
+
+    if body.name == 'Moon':
+        extra = 'Phase {0.moon_phase:.2%}'.format(body)
+    elif isinstance(body, ephem.EarthSatellite):
+        eclipsed = 'eclipsed' if body.eclipsed else 'visible'
+        extra = "i{:.0f}° Range {:,.0f} miles, {:,.0f} mph. {}".format(
+            math.degrees(body._inc), m_to_mi(body.range),
+            3600 * m_to_mi(body.range_velocity), eclipsed)
+    elif body.name != 'Sun':
+        extra = "Mag. {0.mag:+.1f}".format(body)
+    else:
+        extra = ''
+
+    return (
+        color, (
+            get_symbol(body),
+            '{:>12}'.format(_(body.alt)),
+            '{:>12}'.format(_(body.az)),
+            body.name,
+            extra)
+        )
+
 
 def format_rise_transit_set(dct):
     key = dct['key']
@@ -417,7 +457,9 @@ class Root:
 
 cherrypy.config.update({
     'server.socket_host': '0.0.0.0',
-    'server.socket_port': 8000,
+    'server.socket_port': 1025,
+    'log.screen': False,
+    'engine.autoreload': False,
     })
 
 cherrypy.quickstart(Root())

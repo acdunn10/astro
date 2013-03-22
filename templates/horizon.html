@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block extrahead %}
+<meta http-equiv='refresh' content='{{ seconds_to_next_event|floatformat:0 }}'>
+{% endblock %}
+
 {% block extrastyle %}
 <style>
 .table tbody tr.sun > td {

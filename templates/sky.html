@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+<meta http-equiv='refresh' content='6'>
+{% endblock %}
+
+{% block extrastyle %}
+<style>
+.table tbody tr.sun > td {
+    background-color: #FFF108;
+}
+.table tbody tr.satellite > td {
+    background-color: #FBB2FF;
+}
+.table tbody tr.ascending > td {
+    background-color: #FF4145;
+}
+.table tbody tr.descending > td {
+    background-color: #67FF63;
+}
+.table tbody tr.below > td {
+    background-color: #000;
+    color: #FFF;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+Local time is {{ local }}, {{ date }} UTC
+</div>
+
+<div class="row">
+<table class="table table-bordered table-condensed">
+<tbody>
+{% for color,columns in bodies %}
+    <tr class="{{ color }}">
+    {% for col in columns %}<td>{{ col }}</td>{% endfor %}
+    </tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endblock %}
