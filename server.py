@@ -7,7 +7,22 @@ import ephem
 import logging_tree
 from django.template import loader
 from django.conf import settings
-from . import SYMBOLS
+
+SYMBOLS = {
+    'Sun': '☼',
+    'Moon': '☽',
+    'Mercury': '☿',
+    'Venus': '♀',
+    'Earth': '♁',
+    'Mars': '♂',
+    'Jupiter': '♃',
+    'Saturn': '♄',
+    'Uranus': '♅',
+    'Neptune': '♆',
+    '_comet': '☄',
+    '_star': '★',
+    '_satellite': '✺',
+    }
 
 BASEDIR = os.path.join(os.path.dirname(__file__), '..')
 CLOUD_DRIVE_WWW = os.path.expanduser('~/Box Documents/www/')
