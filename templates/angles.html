@@ -16,7 +16,8 @@
 <tbody>
 {% for angle in angles %}
     <tr class="{% if angle.trend %}closer{% else %}further{% endif %}">
-    <td>{{ angle }}</td></tr>
+    {% for col in angle.as_columns %}<td>{{ col }}</td>{% endfor %}
+    </tr>
 {% endfor %}
 </tbody>
 </table>

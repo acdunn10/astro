@@ -37,6 +37,7 @@ CLOUD_DRIVE_WWW = os.path.expanduser('~/Box Documents/www/')
 settings.configure(  # Django configuring for template use
     TEMPLATE_DIRS=(os.path.join(BASEDIR, 'templates'),),
     TEMPLAGE_DEBUG=True,
+    TEMPLATE_STRING_IF_INVALID = "INVALID: %s"
     )
 
 OBSERVER = 'Columbus'
@@ -166,11 +167,6 @@ class Astro:
         return loader.render_to_string('angles.html', {
             'angles': sorted(angles, key=operator.attrgetter('angle')),
             })
-#         response = [
-#             str(sep)
-#             for sep in sorted(angles, key=operator.attrgetter('angle'))
-#             ]
-#         return plain(response)
 
     @cherrypy.expose
     def distance(self, **kwargs):
@@ -186,11 +182,82 @@ class Astro:
         return loader.render_to_string('distance.html', {
             'distances': sorted(distances, key=operator.attrgetter('mph')),
             })
-#         response = [
-#             str(distance)
-#             for distance in sorted(distances, key=operator.attrgetter('mph'))
-#             ]
-#         return plain(response)
+
+    @cherrypy.expose
+    def moon(self):
+        date = ephem.now()
+        moon = ephem.Moon(date)
+        # Young or old Moon (within 72 hours of new)
+        age_message = ''
+        previous_new = ephem.previous_new_moon(date)
+        age = 24 * (date - previous_new)
+        if age <= 72:
+            age_message = "Young Moon: {:.1f} hours".format(age)
+        else:
+            next_new = ephem.next_new_moon(date)
+            age = 24 * (next_new - date)
+            if age <= 72:
+                age_message = "Old Moon: {:.1f} hours".format(age)
+        response = [age_message]
+        response.append("Phase {0.moon_phase:.2%}".format(moon))
+        distance = astro.utils.miles_from_au(moon.earth_distance)
+        moon.compute(ephem.Date(date + ephem.hour))
+        moved = astro.utils.miles_from_au(moon.earth_distance) - distance
+        response.append(
+            'Earth distance:    {:13,.0f} miles, {:+5.0f} mph'.format(
+                distance, moved))
+        observer = ephem.city(OBSERVER)
+        observer.date = date
+        moon.compute(observer)
+        m2 = moon.copy()
+        distance = astro.utils.miles_from_au(moon.earth_distance)
+        observer.date = ephem.Date(date + ephem.hour)
+        moon.compute(observer)
+        moved = astro.utils.miles_from_au(moon.earth_distance) - distance
+        response.append(
+            'Observer distance: {:13,.0f} miles, {:+5.0f} mph'.format(
+                distance, moved))
+        response.append("Azimuth {}".format(_(m2.az)))
+        response.append("Altitude {}".format(_(m2.alt)))
+        response.append("Declination {}".format(_(m2.dec)))
+        return plain(response)
+
+    @cherrypy.expose
+    def horizon(self):
+        response = [
+            format_rise_transit_set(event)
+            for event in sorted(self.rst_events, key=operator.itemgetter('date'))
+            ]
+        return plain(response)
+
+def format_rise_transit_set(dct):
+    key = dct['key']
+    if dct['body'].name == 'Sun':
+        color = 3
+    elif isinstance(dct['body'], ephem.EarthSatellite):
+        color = 4
+    elif key == 'transit':
+        color = 1
+    elif key == 'setting':
+        color = 2
+    else:
+        color = 0
+
+    return (
+        get_symbol(dct['body']),
+        "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
+        "{:^7}".format(key),
+        dct['body'].name,
+        "{}°".format(dct['azalt']),
+        )
+
+    return (
+        "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
+            get_symbol(dct['body']), ephem.localtime(dct['date']), key,
+            dct['body'].name, dct['azalt']),
+        curses.color_pair(color)
+        )
+
 
 class Distance:
     "Manage info about the distance between two bodies"
@@ -239,6 +306,14 @@ class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
             self, _(self.angle), get_symbol(self.body1),
             get_symbol(self.body2),
             ephem.constellation(self.body2)[1])
+
+    def as_columns(self):
+        return (
+            "{:>12}".format(_(self.angle)),
+            "{1}  {0.body1.name} ⇔ {2} {0.body2.name}".format(self,
+                get_symbol(self.body1), get_symbol(self.body2)),
+            "{}".format(ephem.constellation(self.body2)[1]),
+            )
 
 def plain(response):
     s = '\n'.join(response) if isinstance(response, list) else response
