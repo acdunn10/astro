@@ -272,32 +272,37 @@ class Astro:
             format_rise_transit_set(event)
             for event in sorted(events, key=operator.itemgetter('date'))
             ]
-        return plain(response)
+        #return plain(response)
+        return loader.render_to_string('horizon.html', {
+            'events': response,
+            })
 
 def format_rise_transit_set(dct):
     key = dct['key']
     if dct['body'].name == 'Sun':
-        color = 3
+        color = "sun"
     elif isinstance(dct['body'], ephem.EarthSatellite):
-        color = 4
+        color = "satellite"
     elif key == 'transit':
-        color = 1
+        color = "transit"
     elif key == 'setting':
-        color = 2
+        color = "setting"
     else:
-        color = 0
+        color = "normal"
 
-#     return (
-#         get_symbol(dct['body']),
-#         "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
-#         "{:^7}".format(key),
-#         dct['body'].name,
-#         "{}°".format(dct['azalt']),
-#         )
+    return (
+        color,
+        (
+        get_symbol(dct['body']),
+        "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
+        "{:^7}".format(key),
+        dct['body'].name,
+        "{}°".format(dct['azalt']),
+        ))
 
-    return "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
-            get_symbol(dct['body']), ephem.localtime(dct['date']), key,
-            dct['body'].name, dct['azalt'])
+#     return "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
+#             get_symbol(dct['body']), ephem.localtime(dct['date']), key,
+#             dct['body'].name, dct['azalt'])
 
 
 class Distance:

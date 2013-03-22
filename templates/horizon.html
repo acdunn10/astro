@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block extrastyle %}
+<style>
+.table tbody tr.sun > td {
+    background-color: #FFF61E;
+}
+.table tbody tr.satellite > td {
+    background-color: #FF0CF4;
+}
+.table tbody tr.transit > td {
+    background-color: #FF4A37;
+}
+.table tbody tr.setting > td {
+    background-color: #43FF35;
+}
+.table tbody tr.normal > td {
+    background-color: #1169FF;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="span8">
+<table class="table table-bordered table-condensed">
+<tbody>
+{% for color,columns in events %}
+    <tr class="{{ color }}">
+    {% for col in columns %}<td>{{ col }}</td>{% endfor %}
+    </tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endblock %}
