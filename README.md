@@ -1,5 +1,8 @@
 # Astro
 
+No one should be trying to watch this repo. It's undergoing many
+changes and is very unstable.
+
 Some programs I've written using PyEphem. It's not a package to be installed,
 more a collection of toys and experiments I've done with PyEphem.
 

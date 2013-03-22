@@ -5,6 +5,7 @@ import operator
 import itertools
 import cherrypy
 import ephem
+from ephem.stars import stars
 import logging_tree
 from django.template import loader
 from django.conf import settings
@@ -33,6 +34,7 @@ settings.configure(  # Django configuring for template use
     TEMPLAGE_DEBUG=True,
     )
 
+OBSERVER = 'Columbus'
 PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
            ephem.Jupiter, ephem.Saturn,
            ephem.Uranus, ephem.Neptune)
@@ -107,7 +109,7 @@ class Astro:
     @cherrypy.expose
     def index(self):
         now = ephem.now()
-        return loader.render_to_string('index.html', {
+        return loader.render_to_string('home.html', {
             'utc_time': now,
             'local_time': ephem.localtime(now),
             })
@@ -159,6 +161,11 @@ cherrypy.tree.mount(
     }
 )
 
+def display_star(star):
+    star.compute()
+    return "{0.mag:+.1f} {0.name:20} {1:>16} {2:>16} {3}".format(star,
+        _(star.ra, HMS), _(star.dec), ephem.constellation(star)[1])
+
 class Root:
     sun = Sun()
     moon = Moon()
@@ -166,7 +173,15 @@ class Root:
 
     @cherrypy.expose
     def index(self):
-        raise cherrypy.HTTPRedirect('/astro/')
+        return loader.render_to_string('index.html', {})
+
+    @cherrypy.expose
+    def stars(self):
+        response = [
+            display_star(ephem.star(name))
+            for name in sorted(stars.keys())
+        ]
+        return plain(response)
 
     @cherrypy.tools.json_out()
     @cherrypy.expose
