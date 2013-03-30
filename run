@@ -1,0 +1,1 @@
+DEBUG=0 python3 server.py

@@ -3,7 +3,7 @@
 import os
 import math
 import operator
-import collections
+from collections import namedtuple, ChainMap
 import itertools
 import cherrypy
 import ephem
@@ -101,7 +101,7 @@ class Astro:
         comets = astro.comets.Comets()
         asteroids = astro.comets.Asteroids()
         satellites = astro.satellites.EarthSatellites()
-        self.body_names = collections.ChainMap(stars, comets, asteroids, satellites)
+        self.body_names = ChainMap(stars, comets, asteroids, satellites)
         self.default_bodies = (ephem.Sun, ephem.Moon, PLANETS,
                                SPECIAL_STARS, ASTEROIDS, SATELLITES,
                                COMETS)
@@ -159,7 +159,7 @@ class Astro:
                             'body': body,
                             'kind': kind,
                             'date': event_date,
-                            'azalt': azalt,
+                            'azalt': int(math.degrees(azalt)),
                             'key': key,
                             }
                     except ephem.CircumpolarError as e:
@@ -191,7 +191,8 @@ class Astro:
 
     @cherrypy.expose
     def elongation(self):
-        bodies = self.compute(ephem.now(), self.solar_system)
+        bodies = self.compute(ephem.now(), ephem.Moon, PLANETS,
+            SPECIAL_STARS, ASTEROIDS, COMETS)
         response = [
             "{} {:>13} {}".format(
                 get_symbol(body), _(body.elong), body.name)
@@ -206,7 +207,7 @@ class Astro:
             Separation(a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(bodies, 2)
             )
-        #angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
+        angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
         angles = filter(lambda x:x.angle < ephem.degrees('20'), angles)
         return loader.render_to_string('angles.html', {
             'angles': sorted(angles, key=operator.attrgetter('angle')),
@@ -264,23 +265,51 @@ class Astro:
         response.append("Azimuth {}".format(_(m2.az)))
         response.append("Altitude {}".format(_(m2.alt)))
         response.append("Declination {}".format(_(m2.dec)))
+        response.append("\n")
+        for event in moon_phase_events():
+            response.append(str(event))
         return plain(response)
 
     @cherrypy.expose
     def horizon(self):
+        date = ephem.now()
         bodies = [ephem.Sun, ephem.Moon, PLANETS, ASTEROIDS,
                   COMETS, SPECIAL_STARS, SATELLITES]
-        events = list(self.rise_transit_set(ephem.now(), bodies))
+        events = list(self.rise_transit_set(date, bodies))
         events.sort(key=operator.itemgetter('date'))
         response = [
             format_rise_transit_set(event)
             for event in events
             ]
-        seconds_to_next_event = 86400 * (events[0]['date'] - ephem.now())
+        seconds_to_next_event = int(86400 * (events[0]['date'] - date))
+        cherrypy.log("seconds_to_next_event: {}".format(seconds_to_next_event))
+        if seconds_to_next_event < 0:
+            seconds_to_next_event = 15
         return loader.render_to_string('horizon.html', {
             'events': response,
-            'seconds_to_next_event': min(10, seconds_to_next_event),
+            'seconds_to_next_event': seconds_to_next_event,
             })
+
+class MoonPhaseEvent(namedtuple('MoonPhaseEvent', 'method_name date')):
+    def __str__(self):
+        return "{:30s} {}".format(
+            self.method_name.replace('_', ' ').capitalize(),
+            self.date)
+
+def moon_phase_events():
+    date = ephem.now()
+    next_prev = ('next', 'previous')
+    phase = ('new', 'first_quarter', 'full', 'last_quarter')
+    events = []
+    for np in next_prev:
+        for p in phase:
+            method_name = '{}_{}_moon'.format(np, p)
+            method = getattr(ephem, method_name)
+            events.append(MoonPhaseEvent(method_name, method(date)))
+    events.sort(key=operator.attrgetter('date'))
+    for event in events:
+        yield event
+
 
 def m_to_mi(meters):
     return meters / 1609.344
@@ -325,6 +354,8 @@ def format_rise_transit_set(dct):
         color = "satellite"
     elif key == 'transit':
         color = "transit"
+    elif key == 'antitransit':
+        color = 'antitransit'
     elif key == 'setting':
         color = "setting"
     else:
@@ -340,16 +371,14 @@ def format_rise_transit_set(dct):
         "{}°".format(dct['azalt']),
         ))
 
-#     return "{} {:%a %I:%M:%S %p} {:^7} {} {}°".format(
-#             get_symbol(dct['body']), ephem.localtime(dct['date']), key,
-#             dct['body'].name, dct['azalt'])
 
 
 class Distance:
     "Manage info about the distance between two bodies"
     def __init__(self, date, body, attr):
         self.body = body
-        self.miles = astro.utils.miles_from_au(getattr(body, attr))
+        self.au = getattr(body, attr)
+        self.miles = astro.utils.miles_from_au(self.au)
         x = body.copy()
         x.compute(ephem.date(date + ephem.hour))
         moved = astro.utils.miles_from_au(getattr(x, attr)) - self.miles
@@ -357,28 +386,29 @@ class Distance:
         self.mph = abs(moved)
 
     def __str__(self):
-        return "{0.mph:8,.0f} mph {0.miles:13,.0f} {1} {0.body.name}".format(
-                self, get_symbol(self.body))
+        return ' '.join(self.as_columns())
 
     def as_columns(self):
         "makes the table display easier"
         return (
             "{0.mph:8,.0f} mph".format(self),
+            "{0.au:5.2f} A.U.".format(self),
             "{0.miles:13,.0f} miles".format(self),
             get_symbol(self.body),
             "{0.body.name}".format(self)
             )
 
 
-class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
+class Separation(namedtuple('Separation', 'body1 body2 angle')):
     "Manage info about the angular separation between two bodies"
     def is_two_stars(self):
-        return all([isinstance(self.body1, ephem.FixedBody),
-                   isinstance(self.body2, ephem.FixedBody)])
+        return (
+            isinstance(self.body1, ephem.FixedBody) and
+            isinstance(self.body1, ephem.FixedBody)
+        )
 
     def trend(self):
         "Returns True if the two bodies are getting closer"
-        arrows = "UD" #
         a = self.body1.copy()
         b = self.body2.copy()
         later = ephem.now() + ephem.hour
@@ -387,17 +417,13 @@ class Separation(collections.namedtuple('Separation', 'body1 body2 angle')):
         return ephem.separation(a, b) < self.angle
 
     def __str__(self):
-        "Formatting details for update_angles"
-        return "{1:>12}  {2}  {0.body1.name} ⇔ {3} {0.body2.name} ({4})".format(
-            self, _(self.angle), get_symbol(self.body1),
-            get_symbol(self.body2),
-            ephem.constellation(self.body2)[1])
+        return ' '.join(self.as_columns())
 
     def as_columns(self):
         return (
             "{:>12}".format(_(self.angle)),
-            "{1}  {0.body1.name} ⇔ {2} {0.body2.name}".format(self,
-                get_symbol(self.body1), get_symbol(self.body2)),
+            "{1} {0.body1.name}".format(self, get_symbol(self.body1)),
+            "{1} {0.body2.name}".format(self, get_symbol(self.body2)),
             "{}".format(ephem.constellation(self.body2)[1]),
             )
 
@@ -427,6 +453,7 @@ def display_star(star):
     return "{0.mag:+.1f} {0.name:20} {1:>16} {2:>16} {3}".format(star,
         _(star.ra, HMS), _(star.dec), ephem.constellation(star)[1])
 
+
 class Root:
     sun = Sun()
     moon = Moon()
@@ -440,7 +467,26 @@ class Root:
     def stars(self):
         response = [
             display_star(ephem.star(name))
-            for name in sorted(stars.keys())
+            for name in sorted(stars)
+        ]
+        return plain(response)
+
+    @cherrypy.expose
+    def asteroids(self):
+        return self.display_dict('Asteroids', astro.comets.Asteroids())
+
+    @cherrypy.expose
+    def comets(self):
+        return self.display_dict('Comets', astro.comets.Comets())
+
+    @cherrypy.expose
+    def satellites(self):
+        return self.display_dict('Satellites', astro.satellites.EarthSatellites())
+
+    def display_dict(self, title, dct):
+        response = [
+            "#{:5d} {}".format(index, body)
+            for index, body in enumerate(sorted(dct))
         ]
         return plain(response)
 
@@ -454,12 +500,13 @@ class Root:
     def logging(self):
         return logging_tree.format.build_description()
 
+DEBUG = bool(int(os.environ.get('DEBUG', '1')))
 
 cherrypy.config.update({
     'server.socket_host': '0.0.0.0',
     'server.socket_port': 1025,
-    'log.screen': False,
-    'engine.autoreload': False,
+    'log.screen': DEBUG,
+    'engine.autoreload': DEBUG,
     })
 
 cherrypy.quickstart(Root())
