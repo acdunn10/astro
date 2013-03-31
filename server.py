@@ -3,7 +3,7 @@
 import os
 import math
 import operator
-from collections import namedtuple, ChainMap
+from collections import namedtuple, ChainMap, OrderedDict
 import itertools
 import cherrypy
 import ephem
@@ -277,16 +277,12 @@ class Astro:
                   COMETS, SPECIAL_STARS, SATELLITES]
         events = list(self.rise_transit_set(date, bodies))
         events.sort(key=operator.itemgetter('date'))
-        response = [
-            format_rise_transit_set(event)
-            for event in events
-            ]
         seconds_to_next_event = int(86400 * (events[0]['date'] - date))
         cherrypy.log("seconds_to_next_event: {}".format(seconds_to_next_event))
         if seconds_to_next_event < 0:
             seconds_to_next_event = 15
         return loader.render_to_string('horizon.html', {
-            'events': response,
+            'events': Table(format_rise_transit_set, events),
             'seconds_to_next_event': seconds_to_next_event,
             })
 
@@ -345,6 +341,14 @@ def format_sky_position(body):
             extra)
         )
 
+class Table:
+    def __init__(self, formatter, iterable):
+        self.rows = []
+        for event in iterable:
+            klass, dct = formatter(event)
+            self.rows.append((klass, dct))
+        self.header = list(self.rows[0][1].keys())
+
 
 def format_rise_transit_set(dct):
     key = dct['key']
@@ -363,14 +367,13 @@ def format_rise_transit_set(dct):
 
     return (
         color,
-        (
-        get_symbol(dct['body']),
-        "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
-        "{:^7}".format(key),
-        dct['body'].name,
-        "{}°".format(dct['azalt']),
-        ))
-
+        OrderedDict(
+            date="{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
+            event="{:^7}".format(key),
+            body="{} {}".format(get_symbol(dct['body']), dct['body'].name),
+            azimuth="{}°".format(dct['azalt']),
+        )
+    )
 
 
 class Distance:

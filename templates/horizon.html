@@ -32,10 +32,15 @@
 {% block content %}
 <div class="span8">
 <table class="table table-bordered table-condensed">
+<thead>
+<tr>
+{% for name in events.header %}<th>{{ name|capfirst }}</th>{% endfor %}
+</tr>
+</thead>
 <tbody>
-{% for color,columns in events %}
-    <tr class="{{ color }}">
-    {% for col in columns %}<td>{{ col }}</td>{% endfor %}
+{% for class,columns in events.rows %}
+    <tr class="{{ class }}">
+    {% for col in columns.values %}<td>{{ col }}</td>{% endfor %}
     </tr>
 {% endfor %}
 </tbody>
