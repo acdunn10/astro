@@ -367,12 +367,12 @@ def format_rise_transit_set(dct):
 
     return (
         color,
-        OrderedDict(
-            date="{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date'])),
-            event="{:^7}".format(key),
-            body="{} {}".format(get_symbol(dct['body']), dct['body'].name),
-            azimuth="{}°".format(dct['azalt']),
-        )
+        OrderedDict([
+            ('date', "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date']))),
+            ('event', "{:^7}".format(key)),
+            ('body', "{} {}".format(get_symbol(dct['body']), dct['body'].name)),
+            ('azalt', "{}°".format(dct['azalt'])),
+        ])
     )
 
 
