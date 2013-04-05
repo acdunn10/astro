@@ -5,6 +5,7 @@ import math
 import operator
 from collections import namedtuple, ChainMap, OrderedDict
 import itertools
+import configparser
 import cherrypy
 import ephem
 from ephem.stars import stars
@@ -40,21 +41,32 @@ settings.configure(  # Django configuring for template use
     TEMPLATE_STRING_IF_INVALID = "INVALID: %s"
     )
 
-OBSERVER = 'Columbus'
+CONFIG_FILE = os.path.expanduser('~/.astro/config.ini')
+CONFIG_DEFAULTS = {'Observer': 'Columbus'}
+config = configparser.ConfigParser(
+    defaults=CONFIG_DEFAULTS, allow_no_value=True)
+config.read(CONFIG_FILE)
+
+def load_from_config(option, section=None):
+    if section is None:
+        section = 'DEFAULT'
+    return [
+        item
+        for item in config[section][option].split('\n')
+        if item
+    ]
+
+SPECIAL_STARS = load_from_config('stars')
+ASTEROIDS = load_from_config('asteroids')
+COMETS = load_from_config('comets')
+SATELLITES = load_from_config('satellites')
+
 PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
            ephem.Jupiter, ephem.Saturn,
            ephem.Uranus, ephem.Neptune)
-STARS = ('Spica', 'Antares', 'Aldebaran', 'Pollux',
-         'Regulus', 'Nunki', 'Alcyone', 'Elnath')
-ASTEROIDS = ('3753 Cruithne', )
-SATELLITES = ('HST', 'ISS (ZARYA)', 'TIANGONG 1')
-SPECIAL_STARS = ('Sirius', 'Vega')
-COMETS = (
-    'C/2012 S1 (ISON)',
-    'C/2011 L4 (PANSTARRS)',
-    'C/2013 A1 (Siding Spring)',
-    )
-RISE_KINDS = ('next_rising', 'next_setting', 'next_transit', 'next_antitransit')
+
+RISE_KINDS = ('next_rising', 'next_setting',
+              'next_transit', 'next_antitransit')
 
 DMS = """° ’ ”""".split()
 HMS = """h ,m ,s""".split(',')
@@ -101,11 +113,6 @@ class Astro:
         asteroids = astro.catalogs.Asteroids()
         satellites = astro.catalogs.Satellites()
         self.body_names = ChainMap(stars, comets, asteroids, satellites)
-        self.default_bodies = (ephem.Sun, ephem.Moon, PLANETS,
-                               SPECIAL_STARS, ASTEROIDS, SATELLITES,
-                               COMETS)
-        self.solar_system = (ephem.Sun, ephem.Moon, PLANETS,
-                             SPECIAL_STARS, ASTEROIDS, COMETS)
 
     def body_generator(self, *args):
         "individual bodies, e.g., Sun, Moon, or lists, e.g. PLANETS"
@@ -129,7 +136,7 @@ class Astro:
             yield body
 
     def rise_transit_set(self, date, *args):
-        observer = ephem.city(OBSERVER)
+        observer = ephem.city(config['DEFAULT']['observer'])
         observer.date = date
         for body in self.body_generator(args):
             if isinstance(body, ephem.EarthSatellite):
@@ -165,18 +172,12 @@ class Astro:
                         cherrypy.log(str(e))
 
     @cherrypy.expose
-    def index(self):
-        now = ephem.now()
-        return loader.render_to_string('home.html', {
-            'utc_time': now,
-            'local_time': ephem.localtime(now),
-            })
-
-    @cherrypy.expose
     def sky(self):
-        observer = ephem.city(OBSERVER)
+        observer = ephem.city(config['DEFAULT']['observer'])
         observer.date = ephem.now()
-        bodies = self.compute(observer, *self.default_bodies)
+        bodies = self.compute(observer, ephem.Sun, ephem.Moon,
+            PLANETS, SPECIAL_STARS, ASTEROIDS, SATELLITES,
+            COMETS)
         response = [
             format_sky_position(body)
             for body in sorted(bodies,
@@ -201,7 +202,9 @@ class Astro:
 
     @cherrypy.expose
     def angles(self):
-        bodies = self.compute(ephem.now(), self.solar_system, STARS)
+        bodies = self.compute(ephem.now(), ephem.Sun, ephem.Moon,
+            PLANETS, SPECIAL_STARS, ASTEROIDS, COMETS,
+            load_from_config('stars', section='separation'))
         angles = (
             Separation(a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(bodies, 2)
@@ -250,7 +253,7 @@ class Astro:
         response.append(
             'Earth distance:    {:13,.0f} miles, {:+5.0f} mph'.format(
                 distance, moved))
-        observer = ephem.city(OBSERVER)
+        observer = ephem.city(config['DEFAULT']['observer'])
         observer.date = date
         moon.compute(observer)
         m2 = moon.copy()
@@ -479,7 +482,8 @@ class Root:
 
     @cherrypy.expose
     def satellites(self):
-        return self.display_dict('Satellites', astro.catalogs.Satellites())
+        catalog = astro.catalogs.Satellites()
+        return self.display_dict('Satellites', catalog)
 
     def display_dict(self, title, catalog):
         response = [str(catalog)] + [

@@ -11,6 +11,7 @@
     http://spaceflight.nasa.gov/realdata/sightings/cities/view.cgi?
         country=United_States&region=Ohio&city=Columbus
     http://celestrak.com/NORAD/elements/
+    http://celestrak.com/NORAD/documentation/tle-fmt.asp
     http://www.satflare.com/
 
 """
@@ -102,6 +103,12 @@ class Satellites(Catalog, ElementLoader):
     LINE_END = '\r\n'
     SOURCE = 'satellites.txt'
     URL = 'http://celestrak.com/NORAD/elements/visual.txt'
+    element_fields = (
+        ('_inc', 'Inclination'),
+        ('_e', 'Eccentricity'),
+        ('_orbit', 'Orbit'),
+    )
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
