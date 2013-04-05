@@ -45,6 +45,9 @@ class AstroConfig(configparser.ConfigParser):
     def __init__(self):
         super().__init__(defaults={'observer': 'Columbus'},
             allow_no_value=True)
+        self.load()
+
+    def load(self):
         self.read(os.path.expanduser('~/.astro/config.ini'))
 
     def as_list(self, option, section=None):
@@ -84,24 +87,6 @@ def get_symbol(body):
     else:
         key = body.name
     return SYMBOLS.get(key, '?')
-
-
-class SolarSystemBody:
-    @cherrypy.expose
-    def index(self):
-        self.body.compute()
-        return '{0.name}: RA {0.ra}, Decl {0.dec}'.format(self.body)
-
-    @cherrypy.expose
-    def sky(self):
-        self.body.compute(Observer.default)
-        return '{0.name}: {0.alt}° {0.az}°'.format(self.body)
-
-class Sun(SolarSystemBody):
-    body = ephem.Sun()
-
-class Moon(SolarSystemBody):
-    body = ephem.Moon()
 
 
 class Astro:
@@ -466,12 +451,11 @@ def display_star(star):
 
 
 class Root:
-    sun = Sun()
-    moon = Moon()
     astro = Astro()
 
     @cherrypy.expose
     def index(self):
+        config.load()
         return loader.render_to_string('index.html', {})
 
     @cherrypy.expose
