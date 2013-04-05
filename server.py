@@ -41,25 +41,22 @@ settings.configure(  # Django configuring for template use
     TEMPLATE_STRING_IF_INVALID = "INVALID: %s"
     )
 
-CONFIG_FILE = os.path.expanduser('~/.astro/config.ini')
-CONFIG_DEFAULTS = {'Observer': 'Columbus'}
-config = configparser.ConfigParser(
-    defaults=CONFIG_DEFAULTS, allow_no_value=True)
-config.read(CONFIG_FILE)
+class AstroConfig(configparser.ConfigParser):
+    def __init__(self):
+        super().__init__(defaults={'observer': 'Columbus'},
+            allow_no_value=True)
+        self.read(os.path.expanduser('~/.astro/config.ini'))
 
-def load_from_config(option, section=None):
-    if section is None:
-        section = 'DEFAULT'
-    return [
-        item
-        for item in config[section][option].split('\n')
-        if item
-    ]
+    def as_list(self, option, section=None):
+        if section is None:
+            section = 'DEFAULT'
+        return [
+            item
+            for item in self[section][option].split('\n')
+            if item
+        ]
 
-SPECIAL_STARS = load_from_config('stars')
-ASTEROIDS = load_from_config('asteroids')
-COMETS = load_from_config('comets')
-SATELLITES = load_from_config('satellites')
+config = AstroConfig()
 
 PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
            ephem.Jupiter, ephem.Saturn,
@@ -176,8 +173,11 @@ class Astro:
         observer = ephem.city(config['DEFAULT']['observer'])
         observer.date = ephem.now()
         bodies = self.compute(observer, ephem.Sun, ephem.Moon,
-            PLANETS, SPECIAL_STARS, ASTEROIDS, SATELLITES,
-            COMETS)
+            PLANETS,
+            config.as_list('stars'),
+            config.as_list('asteroids'),
+            config.as_list('satellites'),
+            config.as_list('comets'))
         response = [
             format_sky_position(body)
             for body in sorted(bodies,
@@ -192,7 +192,9 @@ class Astro:
     @cherrypy.expose
     def elongation(self):
         bodies = self.compute(ephem.now(), ephem.Moon, PLANETS,
-            SPECIAL_STARS, ASTEROIDS, COMETS)
+            config.as_list('stars'),
+            config.as_list('asteroids'),
+            config.as_list('comets'))
         response = [
             "{} {:>13} {}".format(
                 get_symbol(body), _(body.elong), body.name)
@@ -203,8 +205,11 @@ class Astro:
     @cherrypy.expose
     def angles(self):
         bodies = self.compute(ephem.now(), ephem.Sun, ephem.Moon,
-            PLANETS, SPECIAL_STARS, ASTEROIDS, COMETS,
-            load_from_config('stars', section='separation'))
+            PLANETS,
+            config.as_list('stars'),
+            config.as_list('asteroids'),
+            config.as_list('comets'),
+            config.as_list('stars', section='separation'))
         angles = (
             Separation(a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(bodies, 2)
@@ -219,7 +224,8 @@ class Astro:
     def distance(self, **kwargs):
         attr = kwargs.get('p', 'earth_distance')  # or sun_distance
         date = ephem.now()
-        bodies = [ephem.Moon, PLANETS, ASTEROIDS, COMETS]
+        bodies = [ephem.Moon, PLANETS,
+            config.as_list('asteroids'),  config.as_list('comets')]
         if attr == 'earth_distance':
             bodies.append(ephem.Sun)
         distances = (
@@ -275,8 +281,12 @@ class Astro:
     @cherrypy.expose
     def horizon(self):
         date = ephem.now()
-        bodies = [ephem.Sun, ephem.Moon, PLANETS, ASTEROIDS,
-                  COMETS, SPECIAL_STARS, SATELLITES]
+        bodies = [ephem.Sun, ephem.Moon, PLANETS,
+            config.as_list('stars'),
+            config.as_list('asteroids'),
+            config.as_list('satellites'),
+            config.as_list('comets'),
+        ]
         events = list(self.rise_transit_set(date, bodies))
         events.sort(key=operator.itemgetter('date'))
         seconds_to_next_event = int(86400 * (events[0]['date'] - date))
