@@ -12,8 +12,7 @@ import logging_tree
 from django.template import loader
 from django.conf import settings
 import astro
-import astro.comets
-import astro.satellites
+import astro.catalogs
 import astro.utils
 
 SYMBOLS = {
@@ -98,9 +97,9 @@ class Moon(SolarSystemBody):
 
 class Astro:
     def __init__(self):
-        comets = astro.comets.Comets()
-        asteroids = astro.comets.Asteroids()
-        satellites = astro.satellites.EarthSatellites()
+        comets = astro.catalogs.Comets()
+        asteroids = astro.catalogs.Asteroids()
+        satellites = astro.catalogs.Satellites()
         self.body_names = ChainMap(stars, comets, asteroids, satellites)
         self.default_bodies = (ephem.Sun, ephem.Moon, PLANETS,
                                SPECIAL_STARS, ASTEROIDS, SATELLITES,
@@ -356,17 +355,13 @@ def format_rise_transit_set(dct):
         color = "sun"
     elif isinstance(dct['body'], ephem.EarthSatellite):
         color = "satellite"
-    elif key == 'transit':
-        color = "transit"
-    elif key == 'antitransit':
-        color = 'antitransit'
-    elif key == 'setting':
-        color = "setting"
+    elif key in ('transit', 'antitransit', 'setting'):
+        color = key
     else:
         color = "normal"
 
     return (
-        color,
+        color,  # the class of the table row
         OrderedDict([
             ('date', "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date']))),
             ('event', "{:^7}".format(key)),
@@ -476,20 +471,20 @@ class Root:
 
     @cherrypy.expose
     def asteroids(self):
-        return self.display_dict('Asteroids', astro.comets.Asteroids())
+        return self.display_dict('Asteroids', astro.catalogs.Asteroids())
 
     @cherrypy.expose
     def comets(self):
-        return self.display_dict('Comets', astro.comets.Comets())
+        return self.display_dict('Comets', astro.catalogs.Comets())
 
     @cherrypy.expose
     def satellites(self):
-        return self.display_dict('Satellites', astro.satellites.EarthSatellites())
+        return self.display_dict('Satellites', astro.catalogs.Satellites())
 
-    def display_dict(self, title, dct):
-        response = [
+    def display_dict(self, title, catalog):
+        response = [str(catalog)] + [
             "#{:5d} {}".format(index, body)
-            for index, body in enumerate(sorted(dct))
+            for index, body in enumerate(sorted(catalog))
         ]
         return plain(response)
 
