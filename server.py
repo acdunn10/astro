@@ -53,11 +53,9 @@ class AstroConfig(configparser.ConfigParser):
     def as_list(self, option, section=None):
         if section is None:
             section = 'DEFAULT'
-        return [
-            item
-            for item in self[section][option].split('\n')
-            if item
-        ]
+        items = self[section][option].split('\n')
+        items = [i for i in items if i]
+        return [i.split('#')[0].strip() for i in items]
 
 config = AstroConfig()
 
