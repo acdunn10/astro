@@ -154,7 +154,7 @@ class Astro:
                         cherrypy.log(str(e))
 
     @cherrypy.expose
-    def sky(self):
+    def sky(self, **kwargs):
         observer = ephem.city(config['DEFAULT']['observer'])
         observer.date = ephem.now()
         bodies = self.compute(observer, ephem.Sun, ephem.Moon,
@@ -163,15 +163,20 @@ class Astro:
             config.as_list('asteroids'),
             config.as_list('satellites'),
             config.as_list('comets'))
+        sort_key = kwargs.get('sort', 'alt')
+        sort_reverse = sort_key == 'alt'
         response = [
             format_sky_position(body)
-            for body in sorted(bodies,
-                    key=operator.attrgetter('alt'), reverse=True)
+            for body in sorted(
+                bodies,
+                key=operator.attrgetter(sort_key),
+                reverse=sort_reverse)
         ]
         return loader.render_to_string('sky.html', {
             'bodies': response,
             'date': observer.date,
-            'local': ephem.localtime(observer.date)
+            'local': ephem.localtime(observer.date),
+            'refresh_seconds': 6,
             })
 
     @cherrypy.expose
@@ -207,10 +212,15 @@ class Astro:
 
     @cherrypy.expose
     def distance(self, **kwargs):
-        attr = kwargs.get('p', 'earth_distance')  # or sun_distance
+        body = kwargs.get('body', 'earth')
+        attr = '{}_distance'.format(body)
+        sort_key = kwargs.get('sort', 'mph')
+
         date = ephem.now()
         bodies = [ephem.Moon, PLANETS,
-            config.as_list('asteroids'),  config.as_list('comets')]
+            config.as_list('asteroids'),
+            config.as_list('comets')
+        ]
         if attr == 'earth_distance':
             bodies.append(ephem.Sun)
         distances = (
@@ -218,7 +228,10 @@ class Astro:
             for body in self.compute(date, bodies)
             )
         return loader.render_to_string('distance.html', {
-            'distances': sorted(distances, key=operator.attrgetter('mph')),
+            'title': 'Distance from Earth' if body == 'earth' else 'Distance from Sun',
+            'distances': sorted(
+                distances, key=operator.attrgetter(sort_key)),
+            'body': body,
             })
 
     @cherrypy.expose
@@ -280,7 +293,7 @@ class Astro:
             seconds_to_next_event = 15
         return loader.render_to_string('horizon.html', {
             'events': Table(format_rise_transit_set, events),
-            'seconds_to_next_event': seconds_to_next_event,
+            'refresh_seconds': seconds_to_next_event,
             })
 
 class MoonPhaseEvent(namedtuple('MoonPhaseEvent', 'method_name date')):
@@ -387,9 +400,9 @@ class Distance:
     def as_columns(self):
         "makes the table display easier"
         return (
-            "{0.mph:8,.0f} mph".format(self),
-            "{0.au:5.2f} A.U.".format(self),
-            "{0.miles:13,.0f} miles".format(self),
+            "{0.mph:8,.0f}".format(self),
+            "{0.au:5.2f}".format(self),
+            "{0.miles:13,.0f}".format(self),
             get_symbol(self.body),
             "{0.body.name}".format(self)
             )

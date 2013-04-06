@@ -2,6 +2,10 @@
 
 {% block extrastyle %}
 <style>
+.table thead tr {
+    background-color: #0415FF;
+    color: #FFF40C;
+}
 .table tbody tr.closer > td {
     background-color: #FF7A6A;
 }
@@ -14,6 +18,13 @@
 {% block content %}
 <div class="span8">
 <table class="table table-bordered table-condensed">
+<thead>
+    <tr>
+    <th>Separation</th>
+    <th colspan="2">Bodies</th>
+    <th>Constellation</th>
+    </tr>
+</thead>
 <tbody>
 {% for angle in angles %}
     <tr class="{% if angle.trend %}closer{% else %}further{% endif %}">

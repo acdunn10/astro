@@ -8,11 +8,23 @@
 .table tbody tr.further > td {
     background-color: #8FFFA2;
 }
+.table tbody tr > td {
+    text-align: right;
+}
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="span8">
 <table class="table table-bordered table-condensed">
+<thead>
+    <tr>
+    <th><a href="?sort=mph&body={{ body }}">Miles per Hour</a></th>
+    <th>A.U.</th>
+    <th><a href="?sort=au&body={{ body }}">Miles</a></th>
+    <th colspan="2">Body</th>
+    </tr>
+</thead>
 <tbody>
 {% for distance in distances %}
     <tr class="{% if distance.trend %}closer{% else %}further{% endif %}">
@@ -21,4 +33,5 @@
 {% endfor %}
 </tbody>
 </table>
+</div>
 {% endblock %}

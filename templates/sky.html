@@ -1,9 +1,5 @@
 {% extends "base.html" %}
 
-{% block extrahead %}
-<meta http-equiv='refresh' content='6'>
-{% endblock %}
-
 {% block extrastyle %}
 <style>
 .table tbody tr.sun > td {
@@ -32,6 +28,14 @@ Local time is {{ local }}, {{ date }} UTC
 
 <div class="row">
 <table class="table table-bordered table-condensed">
+<thead>
+    <tr>
+    <th>✺</th>
+    <th><a href="?sort=alt">Altitude</a></th>
+    <th><a href="?sort=az">Azimuth</a></th>
+    <th colspan="2">Body</th>
+    </tr>
+</thead>
 <tbody>
 {% for color,columns in bodies %}
     <tr class="{{ color }}">
