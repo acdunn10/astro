@@ -25,13 +25,17 @@ def report(observer, mercury, what, when):
             what, ephem.localtime(observer.date).date(),
             mercury.alt))
 
-def main():
+def main(observer=None):
+    if observer is None:
+       observer = ephem.city(CITY)
     mercury = ephem.Mercury()
     sun = ephem.Sun()
-    observer = ephem.city(CITY)
     start_date = ephem.now()
     finish_date = ephem.date(start_date + DAYS_AHEAD)
-    print(start_date, finish_date)
+    print("Over the next {} days, mornings and evenings "
+          "when Mercury is a minimum of {} degrees "
+          "above the horizon at sunrise or sunset".format(
+          DAYS_AHEAD, MINIMUM_ALTITUDE))
     for info in generate_rise_set(sun, observer, start_date, finish_date):
         report(observer, mercury, "Morning", info.rise_time)
         report(observer, mercury, "Evening", info.set_time)

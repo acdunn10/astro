@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf8
+import sys
 import itertools
-import ephem
 import collections
+from contextlib import contextmanager
+import ephem
 
 def miles_from_au(au):
     return au * ephem.meters_per_au / 1609.344
@@ -38,6 +40,20 @@ HMS = """h ,m ,s""".split(',')
 def format_angle(angle, spec=DMS):
     "Formatting degrees and hours"
     return ''.join(itertools.chain(*zip(str(angle).split(':'), spec)))
+
+@contextmanager
+def redirect_stdout(fileobj):
+    """
+        with open('help.txt', 'w') as f:
+            with redirect_stdout(f):
+                help(pow)
+    """
+    oldstdout = sys.stdout
+    sys.stdout = fileobj
+    try:
+        yield fileobj
+    finally:
+        sys.stdout = oldstdout
 
 
 if __name__ == '__main__':

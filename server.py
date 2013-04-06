@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.3
 # -*- coding: utf8
 import os
+import io
 import math
 import operator
 from collections import namedtuple, ChainMap, OrderedDict
@@ -15,6 +16,7 @@ from django.conf import settings
 import astro
 import astro.catalogs
 import astro.utils
+import astro.mercury
 
 SYMBOLS = {
     'Sun': '☼',
@@ -489,6 +491,13 @@ class Root:
     def satellites(self):
         catalog = astro.catalogs.Satellites()
         return self.display_dict('Satellites', catalog)
+
+    @cherrypy.expose
+    def mercury(self):
+        f = io.StringIO()
+        with astro.utils.redirect_stdout(f):
+            astro.mercury.main()
+        return plain(f.getvalue())
 
     def display_dict(self, title, catalog):
         response = [str(catalog)] + [
