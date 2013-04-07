@@ -236,7 +236,6 @@ class Astro:
             })
 
 
-
 def m_to_mi(meters):
     return meters / 1609.344
 

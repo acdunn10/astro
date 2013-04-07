@@ -3,6 +3,7 @@
 from collections import namedtuple
 import operator
 import ephem
+from ephem.stars import stars
 from .utils import miles_from_au
 from .utils import format_angle as _
 
@@ -24,6 +25,27 @@ def moon_phase_events():
             events.append(MoonPhaseEvent(method_name, method(date)))
     for event in sorted(events, key=operator.attrgetter('date')):
         yield event
+
+def compute_star(name):
+    star = ephem.star(name)
+    star.compute()
+    return star
+
+def nearest_stars():
+    print('\nThe stars within 20° of the Moon:')
+    now = ephem.now()
+    moon = ephem.Moon(now)
+    separations = {
+        name:ephem.separation(moon, compute_star(name))
+        for name in stars
+    }
+    closest = (
+        (value, name)
+        for (name, value) in separations.items()
+        if value <= ephem.degrees('20')
+    )
+    for (value, name) in sorted(closest):
+        print(name, value)
 
 
 def main(observer):
@@ -63,6 +85,7 @@ def main(observer):
     print("\n")
     for event in moon_phase_events():
         print(str(event))
+    nearest_stars()
 
 if __name__ == '__main__':
     main(ephem.city('Columbus'))
