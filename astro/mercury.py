@@ -11,7 +11,6 @@
     then Mercury should be fairly visible.
 """
 import ephem
-from . import CITY
 from .utils import generate_rise_set
 
 MINIMUM_ALTITUDE = ephem.degrees('10')
@@ -25,9 +24,7 @@ def report(observer, mercury, what, when):
             what, ephem.localtime(observer.date).date(),
             mercury.alt))
 
-def main(observer=None):
-    if observer is None:
-       observer = ephem.city(CITY)
+def main(observer):
     mercury = ephem.Mercury()
     sun = ephem.Sun()
     start_date = ephem.now()
@@ -49,6 +46,6 @@ def elongation():
         print(date, mercury.elong)
 
 if __name__ == '__main__':
-    main()
+    main(ephem.city('Columbus'))
     #elongation()
 
