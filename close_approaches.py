@@ -11,13 +11,12 @@ import collections
 import operator
 import logging
 import itertools
-import json
-from astro import VISIBLE_PLANETS
 from astro.utils import pairwise
 
 logger = logging.getLogger(__name__)
 
-BODIES = (ephem.Moon, ) + VISIBLE_PLANETS
+BODIES = (ephem.Moon, ephem.Venus, ephem.Jupiter,
+          ephem.Mars, ephem.Saturn, ephem.Mercury)
 
 def position_interval(year, interval, *bodies):
     bodies = list(bodies)
@@ -60,7 +59,7 @@ def close_approaches(year, body1, body2):
         if a.delta < 0 and b.delta > 0:
             if a.separation > ephem.degrees('20'):
                 continue
-            logger.info("{} {} ".format(a.date, a.separation))
+            logger.info("   {} {} ".format(a.date, a.separation))
             yield a.info()
 
 def all_planets(years):
@@ -70,7 +69,6 @@ def all_planets(years):
         for a, b in itertools.combinations(BODIES, 2):
             for approach in close_approaches(year, a(), b()):
                 approaches.append(approach)
-    print(json.dumps(approaches, indent=2))
 
 
 if __name__ == '__main__':
