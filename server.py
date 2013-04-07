@@ -62,13 +62,18 @@ RISE_KINDS = ('next_rising', 'next_setting',
               'next_transit', 'next_antitransit')
 
 
-
-class Astro:
+class BodyComputer:
     def __init__(self):
         comets = astro.catalogs.Comets()
         asteroids = astro.catalogs.Asteroids()
         satellites = astro.catalogs.Satellites()
         self.body_names = ChainMap(stars, comets, asteroids, satellites)
+
+    def __call__(self, parameter, *args):
+        "parameter is either an Observer or a date"
+        for body in self.body_generator(args):
+            body.compute(parameter)
+            yield body
 
     def body_generator(self, *args):
         "individual bodies, e.g., Sun, Moon, or lists, e.g. PLANETS"
@@ -85,16 +90,16 @@ class Astro:
                         cherrypy.log("compute doesn't know about {}".format(arg))
                         continue
 
-    def compute(self, parameter, *args):
-        "parameter is either an Observer or a date"
-        for body in self.body_generator(args):
-            body.compute(parameter)
-            yield body
+body_computer = BodyComputer()
+
+class Astro:
+    def __init__(self):
+        pass
 
     def rise_transit_set(self, date, *args):
         observer = config.observer
         observer.date = date
-        for body in self.body_generator(args):
+        for body in body_computer.body_generator(args):
             if isinstance(body, ephem.EarthSatellite):
                 kind = 'next_pass'
                 method = getattr(observer, kind)
@@ -131,7 +136,7 @@ class Astro:
     def sky(self, **kwargs):
         observer = config.observer
         observer.date = ephem.now()
-        bodies = self.compute(observer, ephem.Sun, ephem.Moon,
+        bodies = body_computer(observer, ephem.Sun, ephem.Moon,
             PLANETS,
             config.as_list('stars'),
             config.as_list('asteroids'),
@@ -155,20 +160,11 @@ class Astro:
 
     @cherrypy.expose
     def elongation(self):
-        bodies = self.compute(ephem.now(), ephem.Moon, PLANETS,
-            config.as_list('stars'),
-            config.as_list('asteroids'),
-            config.as_list('comets'))
-        response = [
-            "{} {:>13} {}".format(
-                get_symbol(body), _(body.elong), body.name)
-            for body in sorted(bodies, key=operator.attrgetter('elong'))
-        ]
-        return plain(response)
+        return print_elongation()
 
     @cherrypy.expose
     def angles(self):
-        bodies = self.compute(ephem.now(), ephem.Sun, ephem.Moon,
+        bodies = body_computer(ephem.now(), ephem.Sun, ephem.Moon,
             PLANETS,
             config.as_list('stars'),
             config.as_list('asteroids'),
@@ -199,7 +195,7 @@ class Astro:
             bodies.append(ephem.Sun)
         distances = (
             Distance(date, body, attr)
-            for body in self.compute(date, bodies)
+            for body in body_computer(date, bodies)
             )
         return loader.render_to_string('distance.html', {
             'title': 'Distance from Earth' if body == 'earth' else 'Distance from Sun',
@@ -210,10 +206,7 @@ class Astro:
 
     @cherrypy.expose
     def moon(self):
-        f = io.StringIO()
-        with astro.utils.redirect_stdout(f):
-            astro.moon.main(config.observer)
-        return plain(f.getvalue())
+        return print_moon()
 
     @cherrypy.expose
     def horizon(self):
@@ -355,12 +348,6 @@ class Separation(namedtuple('Separation', 'body1 body2 angle')):
             "{}".format(ephem.constellation(self.body2)[1]),
             )
 
-def plain(response):
-    s = '\n'.join(response) if isinstance(response, list) else response
-    return loader.render_to_string('plain.html', {
-        'content': s
-        })
-
 
 class StaticFiles:
     pass
@@ -376,44 +363,71 @@ cherrypy.tree.mount(
     }
 )
 
-def display_catalog(title, catalog):
-    response = [str(catalog)] + [
-        "#{:5d} {}".format(index, body)
-        for index, body in enumerate(sorted(catalog))
-    ]
-    return plain(response)
-
-
-def display_star(star):
-    star.compute()
-    return "{0.mag:+.1f} {0.name:20} {1:>16} {2:>16} {3}".format(
-        star,
-        _(star.ra, astro.utils.HMS),
-        _(star.dec),
-        ephem.constellation(star)[1])
-
-def display_city(city):
-    latitude, longitude, elevation = ephem_cities[city]
-    return "{:20s} {:+6.2f}° {:+7.2f}° {:5.0f}".format(
-        city, float(latitude), float(longitude), elevation)
-
-def plain_text(func):
-    def decorator():
+def plain_text(func, *args, **kwargs):
+    """ Decorator for a function which prints to stdout. We
+        redirect the output to a string and then return it
+        as a text/plain response.
+    """
+    def decorator(*args, **kwargs):
         f = io.StringIO()
         with astro.utils.redirect_stdout(f):
-            func()
+            func(*args, **kwargs)
         return plain(f.getvalue())
     return decorator
+
+def plain(response):
+    s = '\n'.join(response) if isinstance(response, list) else response
+    return loader.render_to_string('plain.html', {
+        'content': s
+        })
+
+
+@plain_text
+def print_catalog(title, catalog):
+    print("Catalog '{}': {}".format(title, catalog))
+    for index, body in enumerate(sorted(catalog), start=1):
+        print('#{:5,d} {}'.format(index, body))
+
 
 @plain_text
 def print_mercury():
     astro.mercury.main(config.observer)
 
-# def print_mercury():
-#     f = io.StringIO()
-#     with astro.utils.redirect_stdout(f):
-#         astro.mercury.main(config.observer)
-#     return plain(f.getvalue())
+@plain_text
+def print_moon():
+    astro.moon.main(config.observer)
+
+
+@plain_text
+def print_elongation():
+    bodies = body_computer(ephem.now(),
+        ephem.Moon, PLANETS,
+        config.as_list('stars'),
+        config.as_list('asteroids'),
+        config.as_list('comets'))
+    for body in sorted(bodies, key=operator.attrgetter('elong')):
+        print("{} {:>13} {}".format(
+            get_symbol(body), _(body.elong), body.name))
+
+
+@plain_text
+def print_stars():
+    for name in sorted(stars):
+        star = ephem.star(name)
+        star.compute()
+        print(
+            "{0.mag:+.1f} {0.name:20} {1:>16} {2:>16} {3}".format(
+                star,
+                _(star.ra, astro.utils.HMS),
+                _(star.dec),
+                ephem.constellation(star)[1]))
+
+@plain_text
+def print_cities():
+    for city in sorted(ephem_cities):
+        latitude, longitude, elevation = ephem_cities[city]
+        print("{:20s} {:+6.2f}° {:+7.2f}° {:5.0f}".format(
+            city, float(latitude), float(longitude), elevation))
 
 
 class Root:
@@ -423,36 +437,28 @@ class Root:
     def index(self):
         config.load()
         return loader.render_to_string('index.html', {
-            'Mercury': '{} Mercury'.format(get_symbol(ephem.Mercury()))
         })
 
     @cherrypy.expose
     def stars(self):
-        response = [
-            display_star(ephem.star(name))
-            for name in sorted(stars)
-        ]
-        return plain(response)
+        return print_stars()
 
     @cherrypy.expose
     def cities(self):
-        return plain([
-            display_city(city)
-            for city in sorted(ephem_cities)
-        ])
+        return print_cities()
 
     @cherrypy.expose
     def asteroids(self):
-        return display_catalog('Asteroids', astro.catalogs.Asteroids())
+        return print_catalog('Asteroids', astro.catalogs.Asteroids())
 
     @cherrypy.expose
     def comets(self):
-        return display_catalog('Comets', astro.catalogs.Comets())
+        return print_catalog('Comets', astro.catalogs.Comets())
 
     @cherrypy.expose
     def satellites(self):
         catalog = astro.catalogs.Satellites()
-        return display_catalog('Satellites', catalog)
+        return print_catalog('Satellites', catalog)
 
     @cherrypy.expose
     def mercury(self):
