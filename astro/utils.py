@@ -34,13 +34,6 @@ def generate_rise_set(body, observer, start_date=None, ending_date=None):
             raise StopIteration
 
 
-DMS = """° ’ ”""".split()
-HMS = """h ,m ,s""".split(',')
-
-def format_angle(angle, spec=DMS):
-    "Formatting degrees and hours"
-    return ''.join(itertools.chain(*zip(str(angle).split(':'), spec)))
-
 @contextmanager
 def redirect_stdout(fileobj):
     """
@@ -54,6 +47,13 @@ def redirect_stdout(fileobj):
         yield fileobj
     finally:
         sys.stdout = oldstdout
+
+DMS = """° ’ ”""".split()
+HMS = """h ,m ,s""".split(',')
+
+def format_angle(angle, spec=DMS):
+    "Formatting degrees and hours"
+    return ''.join(itertools.chain(*zip(str(angle).split(':'), spec)))
 
 
 if __name__ == '__main__':
