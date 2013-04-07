@@ -1,15 +1,26 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row span12 btn-toolbar">
-<div class="btn-group">
+<div class="row">
+
+<div class="span3"><h2>Ephem</h2>
+<div class="btn-toolbar btn-group">
     <a class="btn" href="/stars/">Stars</a>
+    <a class="btn" href="/cities/">Cities</a>
+</div>
+</div>
+
+<div class="span6"><h2>Catalogs</h2>
+<div class="btn-toolbar btn-group">
     <a class="btn" href="/asteroids/">Asteroids</a>
     <a class="btn" href="/comets/">Comets</a>
     <a class="btn" href="/satellites/">Satellites</a>
 </div>
 
-<div class="btn-group">
+</div>
+
+<div class="span3"><h2>Links</h2>
+<div class="btn-toolbar btn-group btn-group-vertical">
     <a class="btn"
        href="http://www.minorplanetcenter.net/">Minor Planet Center</a>
     <a class="btn"
@@ -17,11 +28,18 @@
     <a class="btn"
        href="http://www.skyandtelescope.com/">SKY &amp; Telescope</a>
 </div>
+
 </div>
 
-<div class="row span12 btn-toolbar">
+</div>
+
+<div class="row">
+<div class="span12"><h2>Miscellaneous</h2>
 <div class="btn-group">
-    <a class="btn" href="/mercury/">Mercury</a>
+    <a class="btn" href="/mercury/">
+    Upcoming good visibility for {{ Mercury }}</a>
 </div>
 </div>
+</div>
+
 {% endblock %}
