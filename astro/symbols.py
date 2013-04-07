@@ -1,5 +1,22 @@
-from . import SYMBOLS
+# -*- coding: utf8
 import ephem
+
+SYMBOLS = {
+    'Sun': '☼',
+    'Moon': '☽',
+    'Mercury': '☿',
+    'Venus': '♀',
+    'Earth': '♁',
+    'Mars': '♂',
+    'Jupiter': '♃',
+    'Saturn': '♄',
+    'Uranus': '♅',
+    'Neptune': '♆',
+    '_comet': '☄',
+    '_star': '★',
+    '_satellite': '✺',
+    }
+
 
 def get_symbol(body):
     "Get the traditional planetary symbols, among others"
