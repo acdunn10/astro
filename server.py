@@ -10,29 +10,18 @@ import configparser
 import cherrypy
 import ephem
 from ephem.stars import stars
+from ephem.cities import _city_data as ephem_cities
 import logging_tree
 from django.template import loader
 from django.conf import settings
 import astro
+import astro.symbols
+get_symbol = astro.symbols.get_symbol
 import astro.catalogs
 import astro.utils
+_ = astro.utils.format_angle
 import astro.mercury
-
-SYMBOLS = {
-    'Sun': '☼',
-    'Moon': '☽',
-    'Mercury': '☿',
-    'Venus': '♀',
-    'Earth': '♁',
-    'Mars': '♂',
-    'Jupiter': '♃',
-    'Saturn': '♄',
-    'Uranus': '♅',
-    'Neptune': '♆',
-    '_comet': '☄',
-    '_star': '★',
-    '_satellite': '✺',
-    }
+import astro.moon
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 CLOUD_DRIVE_WWW = os.path.expanduser('~/Box Documents/www/')
@@ -59,6 +48,10 @@ class AstroConfig(configparser.ConfigParser):
         items = [i for i in items if i]
         return [i.split('#')[0].strip() for i in items]
 
+    @property
+    def observer(self):  # shortcut for common usage
+        return ephem.city(self['DEFAULT']['observer'])
+
 config = AstroConfig()
 
 PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
@@ -68,25 +61,6 @@ PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
 RISE_KINDS = ('next_rising', 'next_setting',
               'next_transit', 'next_antitransit')
 
-DMS = """° ’ ”""".split()
-HMS = """h ,m ,s""".split(',')
-
-def format_angle(angle, spec=DMS):
-    "Formatting degrees and hours"
-    return ''.join(itertools.chain(*zip(str(angle).split(':'), spec)))
-_ = format_angle
-
-def get_symbol(body):
-    "Get the traditional planetary symbols, among others"
-    if isinstance(body, (ephem.HyperbolicBody, ephem.ParabolicBody, ephem.EllipticalBody)):
-        key = '_comet'
-    elif isinstance(body, ephem.FixedBody):
-        key = '_star'
-    elif isinstance(body, ephem.EarthSatellite):
-        key = '_satellite'
-    else:
-        key = body.name
-    return SYMBOLS.get(key, '?')
 
 
 class Astro:
@@ -118,7 +92,7 @@ class Astro:
             yield body
 
     def rise_transit_set(self, date, *args):
-        observer = ephem.city(config['DEFAULT']['observer'])
+        observer = config.observer
         observer.date = date
         for body in self.body_generator(args):
             if isinstance(body, ephem.EarthSatellite):
@@ -155,7 +129,7 @@ class Astro:
 
     @cherrypy.expose
     def sky(self, **kwargs):
-        observer = ephem.city(config['DEFAULT']['observer'])
+        observer = config.observer
         observer.date = ephem.now()
         bodies = self.compute(observer, ephem.Sun, ephem.Moon,
             PLANETS,
@@ -236,45 +210,10 @@ class Astro:
 
     @cherrypy.expose
     def moon(self):
-        date = ephem.now()
-        moon = ephem.Moon(date)
-        # Young or old Moon (within 72 hours of new)
-        age_message = ''
-        previous_new = ephem.previous_new_moon(date)
-        age = 24 * (date - previous_new)
-        if age <= 72:
-            age_message = "Young Moon: {:.1f} hours".format(age)
-        else:
-            next_new = ephem.next_new_moon(date)
-            age = 24 * (next_new - date)
-            if age <= 72:
-                age_message = "Old Moon: {:.1f} hours".format(age)
-        response = [age_message]
-        response.append("Phase {0.moon_phase:.2%}".format(moon))
-        distance = astro.utils.miles_from_au(moon.earth_distance)
-        moon.compute(ephem.Date(date + ephem.hour))
-        moved = astro.utils.miles_from_au(moon.earth_distance) - distance
-        response.append(
-            'Earth distance:    {:13,.0f} miles, {:+5.0f} mph'.format(
-                distance, moved))
-        observer = ephem.city(config['DEFAULT']['observer'])
-        observer.date = date
-        moon.compute(observer)
-        m2 = moon.copy()
-        distance = astro.utils.miles_from_au(moon.earth_distance)
-        observer.date = ephem.Date(date + ephem.hour)
-        moon.compute(observer)
-        moved = astro.utils.miles_from_au(moon.earth_distance) - distance
-        response.append(
-            'Observer distance: {:13,.0f} miles, {:+5.0f} mph'.format(
-                distance, moved))
-        response.append("Azimuth {}".format(_(m2.az)))
-        response.append("Altitude {}".format(_(m2.alt)))
-        response.append("Declination {}".format(_(m2.dec)))
-        response.append("\n")
-        for event in moon_phase_events():
-            response.append(str(event))
-        return plain(response)
+        f = io.StringIO()
+        with astro.utils.redirect_stdout(f):
+            astro.moon.main(config.observer)
+        return plain(f.getvalue())
 
     @cherrypy.expose
     def horizon(self):
@@ -296,25 +235,6 @@ class Astro:
             'refresh_seconds': seconds_to_next_event,
             })
 
-class MoonPhaseEvent(namedtuple('MoonPhaseEvent', 'method_name date')):
-    def __str__(self):
-        return "{:30s} {}".format(
-            self.method_name.replace('_', ' ').capitalize(),
-            self.date)
-
-def moon_phase_events():
-    date = ephem.now()
-    next_prev = ('next', 'previous')
-    phase = ('new', 'first_quarter', 'full', 'last_quarter')
-    events = []
-    for np in next_prev:
-        for p in phase:
-            method_name = '{}_{}_moon'.format(np, p)
-            method = getattr(ephem, method_name)
-            events.append(MoonPhaseEvent(method_name, method(date)))
-    events.sort(key=operator.attrgetter('date'))
-    for event in events:
-        yield event
 
 
 def m_to_mi(meters):
@@ -459,9 +379,16 @@ cherrypy.tree.mount(
 
 def display_star(star):
     star.compute()
-    return "{0.mag:+.1f} {0.name:20} {1:>16} {2:>16} {3}".format(star,
-        _(star.ra, HMS), _(star.dec), ephem.constellation(star)[1])
+    return "{0.mag:+.1f} {0.name:20} {1:>16} {2:>16} {3}".format(
+        star,
+        _(star.ra, astro.utils.HMS),
+        _(star.dec),
+        ephem.constellation(star)[1])
 
+def display_city(city):
+    latitude, longitude, elevation = ephem_cities[city]
+    return "{:20s} {:+6.2f}° {:+7.2f}° {:5.0f}".format(
+        city, float(latitude), float(longitude), elevation)
 
 class Root:
     astro = Astro()
@@ -469,7 +396,9 @@ class Root:
     @cherrypy.expose
     def index(self):
         config.load()
-        return loader.render_to_string('index.html', {})
+        return loader.render_to_string('index.html', {
+            'Mercury': '{} Mercury'.format(get_symbol(ephem.Mercury()))
+        })
 
     @cherrypy.expose
     def stars(self):
@@ -478,6 +407,13 @@ class Root:
             for name in sorted(stars)
         ]
         return plain(response)
+
+    @cherrypy.expose
+    def cities(self):
+        return plain([
+            display_city(city)
+            for city in sorted(ephem_cities)
+        ])
 
     @cherrypy.expose
     def asteroids(self):
@@ -496,7 +432,7 @@ class Root:
     def mercury(self):
         f = io.StringIO()
         with astro.utils.redirect_stdout(f):
-            astro.mercury.main()
+            astro.mercury.main(config.observer)
         return plain(f.getvalue())
 
     def display_dict(self, title, catalog):
