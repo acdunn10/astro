@@ -40,14 +40,11 @@ class Catalog(dict):
     def path(self):
         return os.path.join(os.path.expanduser('~/.astro'), self.SOURCE)
 
-    @property
-    def count(self):
-        return len(self)
-
     def __str__(self):
         return (
-            "[{0.count:,}] "
-            "{0.__class__.__name__} {0.last_modified}".format(self))
+            "[{1:,}] "
+            "{0.__class__.__name__} {0.last_modified}".format(
+                self, len(self)))
 
     def load(self):
         self.clear()
@@ -103,11 +100,6 @@ class Satellites(Catalog, ElementLoader):
     LINE_END = '\r\n'
     SOURCE = 'satellites.txt'
     URL = 'http://celestrak.com/NORAD/elements/visual.txt'
-    element_fields = (
-        ('_inc', 'Inclination'),
-        ('_e', 'Eccentricity'),
-        ('_orbit', 'Orbit'),
-    )
 
 
 if __name__ == '__main__':
