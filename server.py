@@ -376,6 +376,14 @@ cherrypy.tree.mount(
     }
 )
 
+def display_catalog(title, catalog):
+    response = [str(catalog)] + [
+        "#{:5d} {}".format(index, body)
+        for index, body in enumerate(sorted(catalog))
+    ]
+    return plain(response)
+
+
 def display_star(star):
     star.compute()
     return "{0.mag:+.1f} {0.name:20} {1:>16} {2:>16} {3}".format(
@@ -388,6 +396,25 @@ def display_city(city):
     latitude, longitude, elevation = ephem_cities[city]
     return "{:20s} {:+6.2f}° {:+7.2f}° {:5.0f}".format(
         city, float(latitude), float(longitude), elevation)
+
+def plain_text(func):
+    def decorator():
+        f = io.StringIO()
+        with astro.utils.redirect_stdout(f):
+            func()
+        return plain(f.getvalue())
+    return decorator
+
+@plain_text
+def print_mercury():
+    astro.mercury.main(config.observer)
+
+# def print_mercury():
+#     f = io.StringIO()
+#     with astro.utils.redirect_stdout(f):
+#         astro.mercury.main(config.observer)
+#     return plain(f.getvalue())
+
 
 class Root:
     astro = Astro()
@@ -416,30 +443,20 @@ class Root:
 
     @cherrypy.expose
     def asteroids(self):
-        return self.display_dict('Asteroids', astro.catalogs.Asteroids())
+        return display_catalog('Asteroids', astro.catalogs.Asteroids())
 
     @cherrypy.expose
     def comets(self):
-        return self.display_dict('Comets', astro.catalogs.Comets())
+        return display_catalog('Comets', astro.catalogs.Comets())
 
     @cherrypy.expose
     def satellites(self):
         catalog = astro.catalogs.Satellites()
-        return self.display_dict('Satellites', catalog)
+        return display_catalog('Satellites', catalog)
 
     @cherrypy.expose
     def mercury(self):
-        f = io.StringIO()
-        with astro.utils.redirect_stdout(f):
-            astro.mercury.main(config.observer)
-        return plain(f.getvalue())
-
-    def display_dict(self, title, catalog):
-        response = [str(catalog)] + [
-            "#{:5d} {}".format(index, body)
-            for index, body in enumerate(sorted(catalog))
-        ]
-        return plain(response)
+        return print_mercury()
 
     @cherrypy.tools.json_out()
     @cherrypy.expose
