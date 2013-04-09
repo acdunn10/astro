@@ -30,13 +30,13 @@
 <table class="table table-bordered table-condensed">
 <thead>
 <tr>
-{% for name in events.header %}<th>{{ name|capfirst }}</th>{% endfor %}
+{% for name in header %}<th>{{ name }}</th>{% endfor %}
 </tr>
 </thead>
 <tbody>
-{% for class,columns in events.rows %}
-    <tr class="{{ class }}">
-    {% for col in columns.values %}<td>{{ col }}</td>{% endfor %}
+{% for event in events %}
+    <tr class="{{ event.color }}">
+    {% for column in event.as_columns %}<td>{{ column }}</td>{% endfor %}
     </tr>
 {% endfor %}
 </tbody>

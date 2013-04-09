@@ -92,67 +92,87 @@ class BodyComputer:
 
 body_computer = BodyComputer()
 
+class Event(namedtuple('Event', 'body kind date azalt key')):
+    header = ('Date', 'Event', 'Body', 'azalt')
+
+    def color(self):
+        "The class of the table row"
+        if self.body.name == 'Sun':
+            return 'sun'
+        elif isinstance(self.body, ephem.EarthSatellite):
+            return 'satellite'
+        elif self.key in ('transit', 'antitransit', 'setting'):
+            return self.key
+        return 'normal'
+
+    def __str__(self):
+        return ' '.join(self.as_columns())
+
+    def as_columns(self):
+        return (
+            "{:%a %I:%M:%S %p}".format(ephem.localtime(self.date)),
+            "{0.key:^7}".format(self),
+            "{} {}".format(get_symbol(self.body), self.body.name),
+            "{0.azalt}°".format(self),
+        )
+
+def rise_transit_set(start_date, *args):
+    for body in body_computer.body_generator(args):
+        if isinstance(body, ephem.EarthSatellite):
+            observer = config.observer
+            observer.date = start_date
+            kind = 'next_pass'
+            method = getattr(observer, kind)
+            info = method(body)
+            args = zip(*[iter(info)] * 2)
+            keys = ('rising', 'transit', 'setting')
+            for ((date, azalt), key) in zip(args, keys):
+                if date and azalt:
+                    yield Event(
+                        body=body, kind=kind, date=date, key=key,
+                        azalt=int(math.degrees(azalt))
+                    )
+        else:
+            for kind in RISE_KINDS:
+                observer = config.observer
+                observer.date = start_date
+                method = getattr(observer, kind)
+                try:
+                    date = method(body)
+                    azalt = body.alt if 'transit' in kind else body.az
+                    key = kind.split('_')[1]
+                    yield Event(
+                        body=body, kind=kind, date=date, key=key,
+                        azalt=int(math.degrees(azalt))
+                    )
+                except ephem.CircumpolarError as e:
+                    cherrypy.log(str(e))
+
 class Astro:
     def __init__(self):
         pass
-
-    def rise_transit_set(self, date, *args):
-        observer = config.observer
-        observer.date = date
-        for body in body_computer.body_generator(args):
-            if isinstance(body, ephem.EarthSatellite):
-                kind = 'next_pass'
-                method = getattr(observer, kind)
-                info = method(body)
-                args = zip(*[iter(info)] * 2)
-                keys = ('rising', 'transit', 'setting')
-                for ((date, azalt), key) in zip(args, keys):
-                    if date and azalt:
-                        yield {
-                            'body': body,
-                            'kind': kind,
-                            'date': date,
-                            'azalt': int(math.degrees(azalt)),
-                            'key': key,
-                            }
-            else:
-                for kind in RISE_KINDS:
-                    method = getattr(observer, kind)
-                    try:
-                        event_date = method(body)
-                        azalt = body.alt if 'transit' in kind else body.az
-                        key = kind.split('_')[1]
-                        yield {
-                            'body': body,
-                            'kind': kind,
-                            'date': event_date,
-                            'azalt': int(math.degrees(azalt)),
-                            'key': key,
-                            }
-                    except ephem.CircumpolarError as e:
-                        cherrypy.log(str(e))
 
     @cherrypy.expose
     def sky(self, **kwargs):
         observer = config.observer
         observer.date = ephem.now()
-        bodies = body_computer(observer, ephem.Sun, ephem.Moon,
-            PLANETS,
-            config.as_list('stars'),
-            config.as_list('asteroids'),
-            config.as_list('satellites'),
-            config.as_list('comets'))
+        positions = [
+            SkyPosition(body)
+            for body in body_computer(observer, ephem.Sun, ephem.Moon,
+                PLANETS,
+                config.as_list('stars'),
+                config.as_list('asteroids'),
+                config.as_list('satellites'),
+                config.as_list('comets')
+            )
+        ]
         sort_key = kwargs.get('sort', 'alt')
         sort_reverse = sort_key == 'alt'
-        response = [
-            format_sky_position(body)
-            for body in sorted(
-                bodies,
-                key=operator.attrgetter(sort_key),
-                reverse=sort_reverse)
-        ]
+        positions.sort(
+            key=lambda x:getattr(x.body, sort_key),
+            reverse=sort_reverse)
         return loader.render_to_string('sky.html', {
-            'bodies': response,
+            'positions': positions,
             'date': observer.date,
             'local': ephem.localtime(observer.date),
             'refresh_seconds': 6,
@@ -210,6 +230,7 @@ class Astro:
 
     @cherrypy.expose
     def horizon(self):
+        """ Rise, transit and set and satellite passes"""
         date = ephem.now()
         bodies = [ephem.Sun, ephem.Moon, PLANETS,
             config.as_list('stars'),
@@ -217,14 +238,15 @@ class Astro:
             config.as_list('satellites'),
             config.as_list('comets'),
         ]
-        events = list(self.rise_transit_set(date, bodies))
-        events.sort(key=operator.itemgetter('date'))
-        seconds_to_next_event = int(86400 * (events[0]['date'] - date))
+        events = list(rise_transit_set(date, bodies))
+        events.sort(key=operator.attrgetter('date'))
+        seconds_to_next_event = max(
+            int(86400 * (events[0].date - date)),
+            15)
         cherrypy.log("seconds_to_next_event: {}".format(seconds_to_next_event))
-        if seconds_to_next_event < 0:
-            seconds_to_next_event = 15
         return loader.render_to_string('horizon.html', {
-            'events': Table(format_rise_transit_set, events),
+            'header': Event.header,
+            'events': events,
             'refresh_seconds': seconds_to_next_event,
             })
 
@@ -232,66 +254,40 @@ class Astro:
 def m_to_mi(meters):
     return meters / 1609.344
 
-def format_sky_position(body):
-    if body.name == 'Sun':
-        color = 'sun'
-    elif isinstance(body, ephem.EarthSatellite):
-        color = 'satellite'
-    elif body.alt < 0:
-        color = 'below'
-    else:
-        color = 'ascending' if body.az < ephem.degrees('180') else 'descending'
+class SkyPosition(namedtuple('SkyPosition', 'body')):
+    def color(self):
+        if self.body.name == 'Sun':
+            return 'sun'
+        elif isinstance(self.body, ephem.EarthSatellite):
+            return 'satellite'
+        elif self.body.alt < 0:
+            return 'below'
+        else:
+            if self.body.az < ephem.degrees('180'):
+                return 'ascending'
+            return 'descending'
 
-    if body.name == 'Moon':
-        extra = 'Phase {0.moon_phase:.2%}'.format(body)
-    elif isinstance(body, ephem.EarthSatellite):
-        eclipsed = 'eclipsed' if body.eclipsed else 'visible'
-        extra = "i{:.0f}° Range {:,.0f} miles, {:,.0f} mph. {}".format(
-            math.degrees(body._inc), m_to_mi(body.range),
-            3600 * m_to_mi(body.range_velocity), eclipsed)
-    elif body.name != 'Sun':
-        extra = "Mag. {0.mag:+.1f}".format(body)
-    else:
-        extra = ''
-
-    return (
-        color, (
-            get_symbol(body),
-            '{:>12}'.format(_(body.alt)),
-            '{:>12}'.format(_(body.az)),
-            body.name,
-            extra)
+    def as_columns(self):
+        return (
+            get_symbol(self.body),
+            '{:>12}'.format(_(self.body.alt)),
+            '{:>12}'.format(_(self.body.az)),
+            self.body.name,
+            self.extra(),
         )
 
-class Table:
-    def __init__(self, formatter, iterable):
-        self.rows = []
-        for event in iterable:
-            klass, dct = formatter(event)
-            self.rows.append((klass, dct))
-        self.header = list(self.rows[0][1].keys())
-
-
-def format_rise_transit_set(dct):
-    key = dct['key']
-    if dct['body'].name == 'Sun':
-        color = "sun"
-    elif isinstance(dct['body'], ephem.EarthSatellite):
-        color = "satellite"
-    elif key in ('transit', 'antitransit', 'setting'):
-        color = key
-    else:
-        color = "normal"
-
-    return (
-        color,  # the class of the table row
-        OrderedDict([
-            ('date', "{:%a %I:%M:%S %p}".format(ephem.localtime(dct['date']))),
-            ('event', "{:^7}".format(key)),
-            ('body', "{} {}".format(get_symbol(dct['body']), dct['body'].name)),
-            ('azalt', "{}°".format(dct['azalt'])),
-        ])
-    )
+    def extra(self):
+        if self.body.name == 'Moon':
+            return 'Phase {0.moon_phase:.2%}'.format(self.body)
+        elif isinstance(self.body, ephem.EarthSatellite):
+            eclipsed = 'eclipsed' if self.body.eclipsed else 'visible'
+            return "i{:.0f}° Range {:,.0f} miles, {:,.0f} mph. {}".format(
+                math.degrees(self.body._inc), m_to_mi(self.body.range),
+                3600 * m_to_mi(self.body.range_velocity), eclipsed)
+        elif self.body.name != 'Sun':
+            return "Mag. {0.mag:+.1f}".format(self.body)
+        else:
+            return ''
 
 
 class Distance:

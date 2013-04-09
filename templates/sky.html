@@ -37,9 +37,9 @@ Local time is {{ local }}, {{ date }} UTC
     </tr>
 </thead>
 <tbody>
-{% for color,columns in bodies %}
-    <tr class="{{ color }}">
-    {% for col in columns %}<td>{{ col }}</td>{% endfor %}
+{% for position in positions %}
+    <tr class="{{ position.color }}">
+    {% for col in position.as_columns %}<td>{{ col }}</td>{% endfor %}
     </tr>
 {% endfor %}
 </tbody>
