@@ -4,7 +4,7 @@ import os
 import io
 import math
 import operator
-from collections import namedtuple, ChainMap, OrderedDict
+from collections import namedtuple, ChainMap
 import itertools
 import configparser
 import cherrypy
@@ -30,11 +30,13 @@ settings.configure(  # Django configuring for template use
     TEMPLATE_DIRS=(os.path.join(BASEDIR, 'templates'),),
     TEMPLAGE_DEBUG=True,
     TEMPLATE_STRING_IF_INVALID = "INVALID: %s"
-    )
+)
+
 
 class AstroConfig(configparser.ConfigParser):
     def __init__(self):
-        super().__init__(defaults={'observer': 'Columbus'},
+        super().__init__(
+            defaults={'observer': 'Columbus'},
             allow_no_value=True)
         self.load()
 
@@ -54,9 +56,10 @@ class AstroConfig(configparser.ConfigParser):
 
 config = AstroConfig()
 
-PLANETS = (ephem.Mercury, ephem.Venus, ephem.Mars,
-           ephem.Jupiter, ephem.Saturn,
-           ephem.Uranus, ephem.Neptune)
+
+PLANETS = ('Mercury', 'Venus', 'Mars',
+                'Jupiter', 'Saturn',
+                'Uranus', 'Neptune')
 
 RISE_KINDS = ('next_rising', 'next_setting',
               'next_transit', 'next_antitransit')
@@ -64,10 +67,22 @@ RISE_KINDS = ('next_rising', 'next_setting',
 
 class BodyComputer:
     def __init__(self):
+        solar_system = {
+            'Sun': ephem.Sun(),
+            'Moon': ephem.Moon(),
+            'Mercury': ephem.Mercury(),
+            'Venus': ephem.Venus(),
+            'Mars': ephem.Mars(),
+            'Jupiter': ephem.Jupiter(),
+            'Saturn': ephem.Saturn(),
+            'Uranus': ephem.Uranus(),
+            'Neptune': ephem.Neptune(),
+        }
         comets = astro.catalogs.Comets()
         asteroids = astro.catalogs.Asteroids()
         satellites = astro.catalogs.Satellites()
-        self.body_names = ChainMap(stars, comets, asteroids, satellites)
+        self.body_names = ChainMap(
+            solar_system, stars, comets, asteroids, satellites)
 
     def __call__(self, parameter, *args):
         "parameter is either an Observer or a date"
@@ -81,16 +96,16 @@ class BodyComputer:
             if isinstance(arg, (list, tuple)):
                 yield from self.body_generator(*arg)
             else:
-                if isinstance(arg, type):
-                    yield arg()
-                elif isinstance(arg, str):
+                if isinstance(arg, str):
                     try:
                         yield self.body_names[arg]
                     except KeyError:
-                        cherrypy.log("compute doesn't know about {}".format(arg))
+                        cherrypy.log(
+                            "compute doesn't know about {}".format(arg))
                         continue
 
 body_computer = BodyComputer()
+
 
 class Event(namedtuple('Event', 'body kind date azalt key')):
     header = ('Date', 'Event', 'Body', 'azalt')
@@ -115,6 +130,7 @@ class Event(namedtuple('Event', 'body kind date azalt key')):
             "{} {}".format(get_symbol(self.body), self.body.name),
             "{0.azalt}°".format(self),
         )
+
 
 def rise_transit_set(start_date, *args):
     for body in body_computer.body_generator(args):
@@ -148,6 +164,7 @@ def rise_transit_set(start_date, *args):
                 except ephem.CircumpolarError as e:
                     cherrypy.log(str(e))
 
+
 class Astro:
     def __init__(self):
         pass
@@ -158,8 +175,8 @@ class Astro:
         observer.date = ephem.now()
         positions = [
             SkyPosition(body)
-            for body in body_computer(observer, ephem.Sun, ephem.Moon,
-                PLANETS,
+            for body in body_computer(
+                observer, 'Sun', 'Moon', PLANETS,
                 config.as_list('stars'),
                 config.as_list('asteroids'),
                 config.as_list('satellites'),
@@ -169,36 +186,41 @@ class Astro:
         sort_key = kwargs.get('sort', 'alt')
         sort_reverse = sort_key == 'alt'
         positions.sort(
-            key=lambda x:getattr(x.body, sort_key),
+            key=lambda x: getattr(x.body, sort_key),
             reverse=sort_reverse)
         return loader.render_to_string('sky.html', {
             'positions': positions,
             'date': observer.date,
             'local': ephem.localtime(observer.date),
             'refresh_seconds': 6,
-            })
+        })
 
     @cherrypy.expose
     def elongation(self):
         return print_elongation()
 
     @cherrypy.expose
+    def separation(self, body1, body2):
+        return print_separation(body1, body2)
+
+    @cherrypy.expose
     def angles(self):
-        bodies = body_computer(ephem.now(), ephem.Sun, ephem.Moon,
-            PLANETS,
+        date = ephem.now()
+        bodies = body_computer(
+            date, 'Sun', 'Moon', PLANETS,
             config.as_list('stars'),
             config.as_list('asteroids'),
             config.as_list('comets'),
             config.as_list('stars', section='separation'))
         angles = (
-            Separation(a, b, ephem.separation(a, b))
+            Separation(date, a, b, ephem.separation(a, b))
             for a, b in itertools.combinations(bodies, 2)
-            )
-        angles = itertools.filterfalse(lambda x:x.is_two_stars(), angles)
-        angles = filter(lambda x:x.angle < ephem.degrees('20'), angles)
+        )
+        angles = itertools.filterfalse(lambda x: x.is_two_stars(), angles)
+        angles = filter(lambda x: x.angle < ephem.degrees('20'), angles)
         return loader.render_to_string('angles.html', {
             'angles': sorted(angles, key=operator.attrgetter('angle')),
-            })
+        })
 
     @cherrypy.expose
     def distance(self, **kwargs):
@@ -207,22 +229,23 @@ class Astro:
         sort_key = kwargs.get('sort', 'mph')
 
         date = ephem.now()
-        bodies = [ephem.Moon, PLANETS,
+        bodies = [
+            PLANETS, 'Moon',
             config.as_list('asteroids'),
             config.as_list('comets')
         ]
         if attr == 'earth_distance':
-            bodies.append(ephem.Sun)
+            bodies.append('Sun')
         distances = (
             Distance(date, body, attr)
             for body in body_computer(date, bodies)
-            )
+        )
         return loader.render_to_string('distance.html', {
-            'title': 'Distance from Earth' if body == 'earth' else 'Distance from Sun',
+            'title': 'Distance from {}'.format(body.capitalize()),
             'distances': sorted(
                 distances, key=operator.attrgetter(sort_key)),
             'body': body,
-            })
+        })
 
     @cherrypy.expose
     def moon(self):
@@ -232,7 +255,8 @@ class Astro:
     def horizon(self):
         """ Rise, transit and set and satellite passes"""
         date = ephem.now()
-        bodies = [ephem.Sun, ephem.Moon, PLANETS,
+        bodies = [
+            'Sun', 'Moon', PLANETS,
             config.as_list('stars'),
             config.as_list('asteroids'),
             config.as_list('satellites'),
@@ -248,11 +272,12 @@ class Astro:
             'header': Event.header,
             'events': events,
             'refresh_seconds': seconds_to_next_event,
-            })
+        })
 
 
 def m_to_mi(meters):
     return meters / 1609.344
+
 
 class SkyPosition(namedtuple('SkyPosition', 'body')):
     def color(self):
@@ -313,10 +338,10 @@ class Distance:
             "{0.miles:13,.0f}".format(self),
             get_symbol(self.body),
             "{0.body.name}".format(self)
-            )
+        )
 
 
-class Separation(namedtuple('Separation', 'body1 body2 angle')):
+class Separation(namedtuple('Separation', 'date body1 body2 angle')):
     "Manage info about the angular separation between two bodies"
     def is_two_stars(self):
         return (
@@ -342,7 +367,7 @@ class Separation(namedtuple('Separation', 'body1 body2 angle')):
             "{1} {0.body1.name}".format(self, get_symbol(self.body1)),
             "{1} {0.body2.name}".format(self, get_symbol(self.body2)),
             "{}".format(ephem.constellation(self.body2)[1]),
-            )
+        )
 
 
 class StaticFiles:
@@ -351,13 +376,14 @@ class StaticFiles:
 cherrypy.tree.mount(
     StaticFiles(),
     '/static/',
-    config = {
+    config={
         '/': {
             'tools.staticdir.on': True,
             'tools.staticdir.dir': CLOUD_DRIVE_WWW,
         }
     }
 )
+
 
 def plain_text(func, *args, **kwargs):
     """ Decorator for a function which prints to stdout. We
@@ -371,11 +397,12 @@ def plain_text(func, *args, **kwargs):
         return plain(f.getvalue())
     return decorator
 
+
 def plain(response):
     s = '\n'.join(response) if isinstance(response, list) else response
     return loader.render_to_string('plain.html', {
         'content': s
-        })
+    })
 
 
 @plain_text
@@ -386,8 +413,54 @@ def print_catalog(title, catalog):
 
 
 @plain_text
+def print_loaded_comets():
+    print("Loaded comets")
+    efields = ('_inc', '_Om',  '_om', '_a', '_e', '_M', '_epoch_M', '_epoch')
+    for body in body_computer(ephem.now(), config.as_list('comets')):
+        print(body.name)
+        print(body)
+        print(body.writedb())
+        if isinstance(body, ephem.EllipticalBody):
+            print(dir(body))
+            for name in efields:
+                print('{} = "{}"'.format(name, getattr(body, name)))
+            P = math.sqrt(body._a * body._a * body._a)
+            print('Orbital period:', P)
+            p = body._Om + body._om
+            print('Longitude of perihelion', p)
+            n = 0.9856076686 / P
+            print('Mean daily motion', n)
+            T = ephem.Date(body._epoch_M - body._M / n)
+            print('Epoch of perihelion', T)
+            q = body._a * (1 - body._e)
+            print('Perihelion distance', q)
+        print(20 * '-')
+
+
+@plain_text
+def print_separation(body1, body2):
+    print("Separation between", body1, "and", body2)
+    def generate_separations(body1, body2):
+        date = ephem.now()
+        body1, body2 = list(body_computer(date, body1, body2))
+        while True:
+            sep = Separation(date, body1, body2, ephem.separation(body1, body2))
+            yield sep
+            date = ephem.Date(date + ephem.hour)
+            body1.compute(date)
+            body2.compute(date)
+    angles = generate_separations(body1, body2)
+    for a, b in astro.utils.pairwise(angles):
+        if a.angle < b.angle:
+            print('Closest approach:', a.date, a.angle)
+            break
+
+
+
+@plain_text
 def print_mercury():
     astro.mercury.main(config.observer)
+
 
 @plain_text
 def print_moon():
@@ -396,8 +469,9 @@ def print_moon():
 
 @plain_text
 def print_elongation():
-    bodies = body_computer(ephem.now(),
-        ephem.Moon, PLANETS,
+    bodies = body_computer(
+        ephem.now(),
+        'Moon', PLANETS,
         config.as_list('stars'),
         config.as_list('asteroids'),
         config.as_list('comets'))
@@ -417,6 +491,7 @@ def print_stars():
                 _(star.ra, astro.utils.HMS),
                 _(star.dec),
                 ephem.constellation(star)[1]))
+
 
 @plain_text
 def print_cities():
@@ -452,6 +527,10 @@ class Root:
         return print_catalog('Comets', astro.catalogs.Comets())
 
     @cherrypy.expose
+    def db(self):
+        return print_loaded_comets()
+
+    @cherrypy.expose
     def satellites(self):
         catalog = astro.catalogs.Satellites()
         return print_catalog('Satellites', catalog)
@@ -465,7 +544,7 @@ class Root:
     def config(self):
         return cherrypy.config
 
-    @cherrypy.tools.response_headers(headers=(('Content-Type','text/plain'),))
+    @cherrypy.tools.response_headers(headers=(('Content-Type', 'text/plain'),))
     @cherrypy.expose
     def logging(self):
         return logging_tree.format.build_description()
@@ -477,6 +556,6 @@ cherrypy.config.update({
     'server.socket_port': 1025,
     'log.screen': DEBUG,
     'engine.autoreload': DEBUG,
-    })
+})
 
 cherrypy.quickstart(Root())

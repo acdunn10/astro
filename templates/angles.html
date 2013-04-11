@@ -27,9 +27,20 @@
 </thead>
 <tbody>
 {% for angle in angles %}
-    <tr class="{% if angle.trend %}closer{% else %}further{% endif %}">
-    {% for col in angle.as_columns %}<td>{{ col }}</td>{% endfor %}
+    {% with trend=angle.trend %}
+    {% if trend %}<a href="{{ angle.url }}">{% endif %}
+    <tr class="{% if trend %}closer{% else %}further{% endif %}">
+    {% for col in angle.as_columns %}
+        {% if forloop.first and trend %}
+            <td><a href="/astro/separation/{{ angle.body1.name|urlencode:"" }}/{{ angle.body2.name|urlencode:"" }}/">{{ col }}</a></td>
+        {% else %}
+            <td>{{ col }}</td>
+        {% endif %}
+    {% endfor %}
     </tr>
+    {% if trend %}</a>{% endif %}
+    </a>
+    {% endwith %}
 {% endfor %}
 </tbody>
 </table>
