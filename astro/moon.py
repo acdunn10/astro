@@ -85,7 +85,7 @@ def main(observer):
     print("\n")
     for event in moon_phase_events():
         print(str(event))
-    nearest_stars()
+    #nearest_stars()
 
 if __name__ == '__main__':
     main(ephem.city('Columbus'))

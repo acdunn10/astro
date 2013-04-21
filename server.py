@@ -1,18 +1,29 @@
 #!/usr/bin/env python3.3
 # -*- coding: utf8
 import os
+
+# Activate the virtualenv
+activate_file = os.path.expanduser('~/venv/astro/bin/activate_this.py')
+exec(
+    compile(open(activate_file).read(), "activate_this.py", "exec"),
+    dict(__file__ = activate_file)
+    )
+
+import platform
 import io
 import math
 import operator
 from collections import namedtuple, ChainMap
 import itertools
 import configparser
+from urllib.parse import urlencode
 import cherrypy
 import ephem
 from ephem.stars import stars
 from ephem.cities import _city_data as ephem_cities
 import logging_tree
-from django.template import loader
+import django.template.loader
+from django.template import Context
 from django.conf import settings
 import astro
 import astro.symbols
@@ -24,24 +35,33 @@ import astro.mercury
 import astro.moon
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
-CLOUD_DRIVE_WWW = os.path.expanduser('~/Box Documents/www/')
+try:
+    CLOUD_DRIVE_WWW = os.environ['BOOTSTRAP_STATIC_DIR']
+except KeyError:
+    print("Set this to where you have Bootstrap")
+    raise
 
 settings.configure(  # Django configuring for template use
     TEMPLATE_DIRS=(os.path.join(BASEDIR, 'templates'),),
     TEMPLAGE_DEBUG=True,
-    TEMPLATE_STRING_IF_INVALID = "INVALID: %s"
+    TEMPLATE_STRING_IF_INVALID = "INVALID: %s",
 )
+
+def render(template_name, dictionary=None):
+    return django.template.loader.render_to_string(
+        template_name, dictionary=dictionary,
+        context_instance=Context(
+            {'host': platform.node()}))
 
 
 class AstroConfig(configparser.ConfigParser):
+    CONFIG_PATH = os.path.expanduser('~/.astro/config.ini')
+
     def __init__(self):
         super().__init__(
             defaults={'observer': 'Columbus'},
             allow_no_value=True)
-        self.load()
-
-    def load(self):
-        self.read(os.path.expanduser('~/.astro/config.ini'))
+        self.read(self.CONFIG_PATH)
 
     def as_list(self, option, section=None):
         if section is None:
@@ -54,12 +74,19 @@ class AstroConfig(configparser.ConfigParser):
     def observer(self):  # shortcut for common usage
         return ephem.city(self['DEFAULT']['observer'])
 
+    @observer.setter
+    def observer(self, value):
+        self['DEFAULT']['observer'] = value
+        with open(self.CONFIG_PATH, 'w') as f:
+            self.write(f)
+
+
 config = AstroConfig()
 
 
 PLANETS = ('Mercury', 'Venus', 'Mars',
-                'Jupiter', 'Saturn',
-                'Uranus', 'Neptune')
+           'Jupiter', 'Saturn',
+           'Uranus', 'Neptune')
 
 RISE_KINDS = ('next_rising', 'next_setting',
               'next_transit', 'next_antitransit')
@@ -188,7 +215,8 @@ class Astro:
         positions.sort(
             key=lambda x: getattr(x.body, sort_key),
             reverse=sort_reverse)
-        return loader.render_to_string('sky.html', {
+        return render('sky.html', {
+            'observer': observer,
             'positions': positions,
             'date': observer.date,
             'local': ephem.localtime(observer.date),
@@ -218,7 +246,7 @@ class Astro:
         )
         angles = itertools.filterfalse(lambda x: x.is_two_stars(), angles)
         angles = filter(lambda x: x.angle < ephem.degrees('20'), angles)
-        return loader.render_to_string('angles.html', {
+        return render('angles.html', {
             'angles': sorted(angles, key=operator.attrgetter('angle')),
         })
 
@@ -240,7 +268,7 @@ class Astro:
             Distance(date, body, attr)
             for body in body_computer(date, bodies)
         )
-        return loader.render_to_string('distance.html', {
+        return render('distance.html', {
             'title': 'Distance from {}'.format(body.capitalize()),
             'distances': sorted(
                 distances, key=operator.attrgetter(sort_key)),
@@ -268,10 +296,11 @@ class Astro:
             int(86400 * (events[0].date - date)),
             15)
         cherrypy.log("seconds_to_next_event: {}".format(seconds_to_next_event))
-        return loader.render_to_string('horizon.html', {
+        return render('horizon.html', {
             'header': Event.header,
             'events': events,
             'refresh_seconds': seconds_to_next_event,
+            'observer': config.observer,
         })
 
 
@@ -370,19 +399,13 @@ class Separation(namedtuple('Separation', 'date body1 body2 angle')):
         )
 
 
-class StaticFiles:
-    pass
-
-cherrypy.tree.mount(
-    StaticFiles(),
-    '/static/',
-    config={
-        '/': {
-            'tools.staticdir.on': True,
-            'tools.staticdir.dir': CLOUD_DRIVE_WWW,
-        }
-    }
-)
+def clickable_list(func, *args, **kwargs):
+    def decorator(*args, **kwargs):
+        object_list = list(func(*args, **kwargs))
+        return render('clickable_list.html', {
+            'object_list': object_list,
+        })
+    return decorator
 
 
 def plain_text(func, *args, **kwargs):
@@ -400,7 +423,7 @@ def plain_text(func, *args, **kwargs):
 
 def plain(response):
     s = '\n'.join(response) if isinstance(response, list) else response
-    return loader.render_to_string('plain.html', {
+    return render('plain.html', {
         'content': s
     })
 
@@ -440,12 +463,13 @@ def print_loaded_comets():
 @plain_text
 def print_separation(body1, body2):
     print("Separation between", body1, "and", body2)
+
     def generate_separations(body1, body2):
         date = ephem.now()
         body1, body2 = list(body_computer(date, body1, body2))
         while True:
-            sep = Separation(date, body1, body2, ephem.separation(body1, body2))
-            yield sep
+            yield Separation(
+                date, body1, body2, ephem.separation(body1, body2))
             date = ephem.Date(date + ephem.hour)
             body1.compute(date)
             body2.compute(date)
@@ -454,7 +478,6 @@ def print_separation(body1, body2):
         if a.angle < b.angle:
             print('Closest approach:', a.date, a.angle)
             break
-
 
 
 @plain_text
@@ -493,12 +516,16 @@ def print_stars():
                 ephem.constellation(star)[1]))
 
 
-@plain_text
+@clickable_list
 def print_cities():
     for city in sorted(ephem_cities):
         latitude, longitude, elevation = ephem_cities[city]
-        print("{:20s} {:+6.2f}° {:+7.2f}° {:5.0f}".format(
-            city, float(latitude), float(longitude), elevation))
+        yield {
+            'display': "{:20s} {:+6.2f}° {:+7.2f}° {:5.0f}".format(
+                city, float(latitude), float(longitude), elevation),
+            'href': '/location/?{}'.format(
+                urlencode({'city': city})),
+        }
 
 
 class Root:
@@ -506,9 +533,7 @@ class Root:
 
     @cherrypy.expose
     def index(self):
-        config.load()
-        return loader.render_to_string('index.html', {
-        })
+        return render('index.html')
 
     @cherrypy.expose
     def stars(self):
@@ -517,6 +542,11 @@ class Root:
     @cherrypy.expose
     def cities(self):
         return print_cities()
+
+    @cherrypy.expose
+    def location(self, **kwargs):
+        config.observer = kwargs['city']
+        raise cherrypy.HTTPRedirect('/')
 
     @cherrypy.expose
     def asteroids(self):
@@ -549,13 +579,12 @@ class Root:
     def logging(self):
         return logging_tree.format.build_description()
 
-DEBUG = bool(int(os.environ.get('DEBUG', '1')))
 
 cherrypy.config.update({
     'server.socket_host': '0.0.0.0',
-    'server.socket_port': 1025,
-    'log.screen': DEBUG,
-    'engine.autoreload': DEBUG,
+    'server.socket_port': 8001,
+    'log.screen': True,
+    'engine.autoreload': False,
 })
 
 cherrypy.quickstart(Root())

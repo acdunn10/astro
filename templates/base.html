@@ -5,9 +5,8 @@
     <meta charset="utf-8">
     <title>{% if title %}{{ title }}{% else %}Astro{% endif %}</title>
     <link rel="stylesheet"
-          href="/static/bootstrap/css/bootstrap.css" media="screen">
-    {#<script src="/static/jquery/js/jquery-1.9.1.js"></script>#}
-    {#<script src="/static/bootstrap/js/bootstrap.js"></script>#}
+          href="http://{{ host }}:8002/bootstrap/css/bootstrap.css"
+          media="screen">
     {% block extrahead %}{% endblock %}
     <style>
     .table thead tr {
@@ -36,6 +35,7 @@
                 <li><a href="/astro/elongation/">Elongation</a></li>
                 <li><a href="/astro/moon/">Moon</a></li>
                 <li><a href="/astro/horizon/">Rise/Set</a></li>
+            </ul>
         </div>
     </div>
     {% endblock %}
