@@ -24,7 +24,7 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
-MAXIMUM_AGE_DAYS = 1
+MAXIMUM_AGE_DAYS = 3
 
 class Catalog(dict):
     """ A Catalog is a dictionary of bodies, usually comets, asteroids,
@@ -104,12 +104,13 @@ class Satellites(Catalog, ElementLoader):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    comets = Comets()
-    print(comets)
-    asteroids = Asteroids()
-    print(asteroids)
-    satellites = Satellites()
-    print(satellites)
+    now = ephem.now()
+    for klass in (Comets, Asteroids, Satellites):
+        catalog = klass()
+        print(catalog)
+        if now - catalog.last_modified >= MAXIMUM_AGE_DAYS:
+            print("Retrieving most recent data...")
+            catalog.retrieve()
 
 
 
