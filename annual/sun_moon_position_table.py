@@ -6,10 +6,12 @@
     For example:
         python -m annual.sun_moon_position_table > sun-moon.txt
 
-    See get_sun_moon.py for an example of using this table
 """
 import ephem
 import math
+
+CITY = 'Columbus'
+MINUTES = 4
 
 def position_interval(observer, year, interval, *bodies):
     bodies = list(bodies)
@@ -21,13 +23,13 @@ def position_interval(observer, year, interval, *bodies):
         yield (date, bodies)
         date = ephem.Date(date + interval)
 
-
-if __name__ == '__main__':
-    observer = ephem.city('Columbus')
+def print_position_table():
+    observer = ephem.city(CITY)
     year = ephem.now().triple()[0]
-    for (date, (sun, moon)) in position_interval(observer, 2013,
-                        4 * ephem.minute, ephem.Sun(), ephem.Moon()):
+    for (date, (sun, moon)) in position_interval(observer, year,
+                        MINUTES * ephem.minute, ephem.Sun(), ephem.Moon()):
         # convert from radians to degrees and then round to ints
         fields = map(math.degrees, (sun.az, sun.alt, moon.az, moon.alt))
         fields = map(int, fields)
         print('{},{},{},{}'.format(*fields))
+print_position_table()
