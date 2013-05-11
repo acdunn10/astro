@@ -34,11 +34,35 @@ settings.configure(  # Django configuring for template use
     TEMPLATE_STRING_IF_INVALID = "INVALID: %s",
 )
 
+class NavBar(namedtuple('NavBar', 'name path')):
+    def __str__(self):
+        return '<a href="{}">{}</a>'.format(
+            cherrypy.url(self.path, relative=False), self.name)
+
+
+NAV_BAR_ITEMS = (
+    NavBar('Home', '/'),
+    NavBar('Sky', '/astro/sky'),
+    NavBar('Angles', '/astro/angles'),
+    NavBar('Distance ☼', '/astro/sun_distance'),
+    NavBar('Distance ♁', '/astro/earth_distance'),
+    NavBar('Elongation', '/astro/elongation'),
+    NavBar('Moon', '/astro/moon'),
+    NavBar('Rise/Set', '/astro/horizon'),
+)
+
+
+def nav_bar_items():
+    return [str(item) for item in NAV_BAR_ITEMS]
+
+
 def render(template_name, dictionary=None):
     return django.template.loader.render_to_string(
         template_name, dictionary=dictionary,
-        context_instance=Context(
-            {'host': platform.node()}))
+        context_instance=Context({
+            'host': platform.node(),
+            'nav_bar_items': nav_bar_items(),
+        }))
 
 
 class AstroConfig(configparser.ConfigParser):
@@ -215,7 +239,9 @@ class Astro:
         return print_elongation()
 
     @cherrypy.expose
-    def separation(self, body1, body2):
+    def separation(self, **kwargs):
+        body1 = kwargs.pop('body1')
+        body2 = kwargs.pop('body2')
         return print_separation(body1, body2)
 
     @cherrypy.expose
@@ -238,6 +264,15 @@ class Astro:
         })
 
     @cherrypy.expose
+    def sun_distance(self, **kwargs):
+        kwargs.update(body='sun')
+        return self.distance(**kwargs)
+
+    @cherrypy.expose
+    def earth_distance(self, **kwargs):
+        kwargs.update(body='earth')
+        return self.distance(**kwargs)
+
     def distance(self, **kwargs):
         body = kwargs.get('body', 'earth')
         attr = '{}_distance'.format(body)
@@ -373,6 +408,13 @@ class Separation(namedtuple('Separation', 'date body1 body2 angle')):
         a.compute(later)
         b.compute(later)
         return ephem.separation(a, b) < self.angle
+
+    def url(self):
+        return cherrypy.url(
+            'separation',
+            qs=urlencode({'body1': self.body1.name,
+                          'body2': self.body2.name}))
+
 
     def __str__(self):
         return ' '.join(self.as_columns())
@@ -530,10 +572,10 @@ class Root:
     def cities(self):
         return print_cities()
 
-    @cherrypy.expose
-    def location(self, **kwargs):
-        config.observer = kwargs['city']
-        raise cherrypy.HTTPRedirect('/')
+#     @cherrypy.expose
+#     def location(self, **kwargs):
+#         config.observer = kwargs['city']
+#         raise cherrypy.HTTPRedirect('/')
 
     @cherrypy.expose
     def asteroids(self):
@@ -566,12 +608,12 @@ class Root:
     def logging(self):
         return logging_tree.format.build_description()
 
+if __name__ == '__main__':
+    cherrypy.config.update({
+        'server.socket_host': '0.0.0.0',
+        'server.socket_port': 8001,
+        'log.screen': True,
+        'engine.autoreload': False,
+    })
 
-cherrypy.config.update({
-    'server.socket_host': '0.0.0.0',
-    'server.socket_port': 8001,
-    'log.screen': True,
-    'engine.autoreload': False,
-})
-
-cherrypy.quickstart(Root())
+    cherrypy.quickstart(Root())

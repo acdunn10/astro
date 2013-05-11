@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <title>{% if title %}{{ title }}{% else %}Astro{% endif %}</title>
     <link rel="stylesheet"
-          href="http://{{ host }}:1025/bootstrap/css/bootstrap.css"
+          href="/bootstrap/css/bootstrap.css"
           media="screen">
     {% block extrahead %}{% endblock %}
     <style>
@@ -27,14 +27,9 @@
     <div class="navbar navbar-static-top navbar-inverse">
         <div class="navbar-inner">
             <ul class="nav">
-                <li><a href="/">Home</a></li>
-                <li><a href="/astro/sky/">Sky</a></li>
-                <li><a href="/astro/angles/">Angles</a></li>
-                <li><a href="/astro/distance/?body=sun">Distance ☼</a></li>
-                <li><a href="/astro/distance/?body=earth">Distance ♁</a></li>
-                <li><a href="/astro/elongation/">Elongation</a></li>
-                <li><a href="/astro/moon/">Moon</a></li>
-                <li><a href="/astro/horizon/">Rise/Set</a></li>
+                {% for item in nav_bar_items %}
+                <li>{{ item|safe }}</li>
+                {% endfor %}
             </ul>
         </div>
     </div>
