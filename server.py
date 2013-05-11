@@ -1,14 +1,6 @@
 #!/usr/bin/env python3.3
 # -*- coding: utf8
 import os
-
-# Activate the virtualenv
-activate_file = os.path.expanduser('~/venv/astro/bin/activate_this.py')
-exec(
-    compile(open(activate_file).read(), "activate_this.py", "exec"),
-    dict(__file__ = activate_file)
-    )
-
 import platform
 import io
 import math
@@ -35,11 +27,6 @@ import astro.mercury
 import astro.moon
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
-try:
-    CLOUD_DRIVE_WWW = os.environ['BOOTSTRAP_STATIC_DIR']
-except KeyError:
-    print("Set this to where you have Bootstrap")
-    raise
 
 settings.configure(  # Django configuring for template use
     TEMPLATE_DIRS=(os.path.join(BASEDIR, 'templates'),),
@@ -292,7 +279,7 @@ class Astro:
         ]
         events = list(rise_transit_set(date, bodies))
         events.sort(key=operator.attrgetter('date'))
-        seconds_to_next_event = max(
+        seconds_to_next_event = 1 + max(
             int(86400 * (events[0].date - date)),
             15)
         cherrypy.log("seconds_to_next_event: {}".format(seconds_to_next_event))
