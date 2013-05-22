@@ -1,4 +1,5 @@
 from django.conf.urls import patterns, include, url
+from django.conf import settings
 
 urlpatterns = patterns('django_astro.views',
     url(r'^$', 'home', name='astro-home'),
@@ -17,3 +18,8 @@ urlpatterns = patterns('django_astro.views',
     url(r'^mercury/$', 'print_mercury', name='mercury'),
     url(r'^separation/$', 'print_separation', name='print-separation'),
 )
+
+if settings.DEBUG:
+    urlpatterns += patterns('django.contrib.staticfiles.views',
+        url(r'^static/(?P<path>.*)$', 'serve'),
+    )
