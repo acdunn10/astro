@@ -50,7 +50,6 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     'django.core.context_processors.tz',
     'django.core.context_processors.request',
     'django.contrib.messages.context_processors.messages',
-    'django_astro.context_processors.static_bootstrap',
 )
 
 ROOT_URLCONF = 'project.urls'
@@ -86,3 +85,22 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/dev/howto/static-files/
 
 STATIC_URL = '/static/'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    'formatters': {
+        'simple': {'format': "[%(name)s#%(lineno)d] %(levelname)s: %(message)s"},
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django_astro': {'handlers': ['console'], 'level': 'DEBUG'},
+    },
+}

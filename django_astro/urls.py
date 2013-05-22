@@ -1,11 +1,11 @@
 from django.conf.urls import patterns, include, url
 
 urlpatterns = patterns('django_astro.views',
-    url(r'^$', 'home', name='home'),
+    url(r'^$', 'home', name='astro-home'),
     url(r'^sky/$', 'sky', name='sky'),
     url(r'^angles/$', 'angles', name='angles'),
-    url(r'^sun_distance/$', 'sun_distance', name='sun-distance'),
-    url(r'^earth_distance/$', 'earth_distance', name='earth-distance'),
+    url(r'^distance/(?P<body>sun|earth)/(?P<sort>mph|miles)/$',
+        'distance', name='distance'),
     url(r'^elongation/$', 'elongation', name='elongation'),
     url(r'^moon/$', 'moon', name='moon'),
     url(r'^horizon/$', 'horizon', name='horizon'),

@@ -80,9 +80,8 @@ def sun_distance(request):
 def earth_distance(request):
     return distance(request, body='sun')
 
-def distance(request, body):
+def distance(request, body, sort):
     attr = '{}_distance'.format(body)
-    sort_key = request.GET.get('sort', 'mph')
     date = ephem.now()
     bodies = [
         PLANETS, 'Moon',
@@ -98,7 +97,7 @@ def distance(request, body):
     return render(request, 'astro/distance.html', {
         'title': 'Distance from {}'.format(body.capitalize()),
         'distances': sorted(
-            distances, key=operator.attrgetter(sort_key)),
+            distances, key=operator.attrgetter(sort)),
         'body': body,
     })
 

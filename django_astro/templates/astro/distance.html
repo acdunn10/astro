@@ -19,9 +19,9 @@
 <table class="table table-bordered table-condensed">
 <thead>
     <tr>
-    <th><a href="?sort=mph&body={{ body }}">Miles per Hour</a></th>
+    <th><a href="{% url 'distance' body 'mph' %}">Miles per Hour</a></th>
     <th>A.U.</th>
-    <th><a href="?sort=au&body={{ body }}">Miles</a></th>
+    <th><a href="{% url 'distance' body 'miles' %}">Miles</a></th>
     <th colspan="2">Body</th>
     </tr>
 </thead>
