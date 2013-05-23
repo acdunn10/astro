@@ -95,7 +95,10 @@ LOGGING = {
     'disable_existing_loggers': False,
 
     'formatters': {
-        'simple': {'format': "[%(name)s#%(lineno)d] %(levelname)s: %(message)s"},
+        'simple': {
+            'format': "%(asctime)s [%(name)s#%(lineno)d] %(levelname)s: %(message)s",
+            'datefmt': "%d/%b/%Y %H:%M:%S",
+        },
     },
     'handlers': {
         'console': {
