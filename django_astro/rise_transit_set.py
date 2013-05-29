@@ -2,10 +2,12 @@ import math
 import logging
 from collections import namedtuple
 import ephem
+from django.utils.timesince import timeuntil
+from django.contrib import messages
 import astro.symbols
 get_symbol = astro.symbols.get_symbol
 from .body_computer import body_computer
-from .configuration import config
+from .configuration import make_observer
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +16,7 @@ RISE_KINDS = ('next_rising', 'next_setting',
 
 
 class Event(namedtuple('Event', 'body kind date azalt key')):
-    header = ('Date', 'Event', 'Body', 'azalt')
+    header = ('UTC', 'Local', 'When', 'Event', 'Body', 'azalt')
 
     def color(self):
         "The class of the table row"
@@ -31,31 +33,38 @@ class Event(namedtuple('Event', 'body kind date azalt key')):
 
     def as_columns(self):
         return (
+            "{:%a %H:%M:%S}".format(self.date.datetime()),
             "{:%a %I:%M:%S %p}".format(ephem.localtime(self.date)),
+            "{}".format(timeuntil(ephem.localtime(self.date))),
             "{0.key:^7}".format(self),
             "{} {}".format(get_symbol(self.body), self.body.name),
             "{0.azalt}°".format(self),
         )
 
-def rise_transit_set(start_date, *args):
+def rise_transit_set(request, start_date, *args):
+    problems = set()
     for body in body_computer.body_generator(args):
         if isinstance(body, ephem.EarthSatellite):
-            observer = config.observer
+            observer = make_observer(request)
             observer.date = start_date
             kind = 'next_pass'
             method = getattr(observer, kind)
-            info = method(body)
-            args = zip(*[iter(info)] * 2)
-            keys = ('rising', 'transit', 'setting')
-            for ((date, azalt), key) in zip(args, keys):
-                if date and azalt:
-                    yield Event(
-                        body=body, kind=kind, date=date, key=key,
-                        azalt=int(math.degrees(azalt))
-                    )
+            try:
+                info = method(body)
+                args = zip(*[iter(info)] * 2)
+                keys = ('rising', 'transit', 'setting')
+                for ((date, azalt), key) in zip(args, keys):
+                    if date and azalt:
+                        yield Event(
+                            body=body, kind=kind, date=date, key=key,
+                            azalt=int(math.degrees(azalt))
+                        )
+            except ValueError as e:
+                logger.info(str(e))
+                problems.add(body.name)
         else:
             for kind in RISE_KINDS:
-                observer = config.observer
+                observer = make_observer(request)
                 observer.date = start_date
                 method = getattr(observer, kind)
                 try:
@@ -68,5 +77,9 @@ def rise_transit_set(start_date, *args):
                     )
                 except ephem.CircumpolarError as e:
                     logger.info(str(e))
+                    problems.add(body.name)
+    if problems:
+        logger.info('Problems: {}'.format(problems))
+        messages.info(request, 'Problems: {}'.format(problems))
 
 

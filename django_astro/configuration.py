@@ -2,6 +2,8 @@ import os
 import configparser
 import ephem
 
+DEFAULT_CITY = 'Columbus'
+
 class AstroConfig(configparser.ConfigParser):
     CONFIG_PATH = os.path.expanduser('~/.astro/config.ini')
 
@@ -30,3 +32,7 @@ class AstroConfig(configparser.ConfigParser):
 
 
 config = AstroConfig()
+
+def make_observer(request):
+    name = request.session.get('astro-observer', DEFAULT_CITY)
+    return ephem.city(name)

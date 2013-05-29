@@ -26,7 +26,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="span8"><h4>{{ observer.name }}</h4>
+<div class="span10">
+<h4><a href="{% url 'cities' %}?redirect=horizon">{{ observer.name }}</a></h4>
 <table class="table table-bordered table-condensed">
 <thead>
 <tr>

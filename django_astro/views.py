@@ -1,8 +1,13 @@
 import itertools
 import operator
 import io
+import logging
 from django.shortcuts import render
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
+from django.core.urlresolvers import reverse_lazy
+from django.utils.encoding import force_text
+from django.contrib import messages
+from django.views import generic
 import ephem
 import ephem.stars
 from ephem.cities import _city_data as ephem_cities
@@ -13,22 +18,28 @@ import astro.symbols
 get_symbol = astro.symbols.get_symbol
 import astro.utils
 _ = astro.utils.format_angle
-from .configuration import config
+from .configuration import config, make_observer
 from .body_computer import body_computer
 from .sky_position import SkyPosition
 from .separation import Separation
 from .distance import Distance
 from .rise_transit_set import rise_transit_set, Event
+from .forms import CityChooserForm
+
+logger = logging.getLogger(__name__)
 
 PLANETS = ('Mercury', 'Venus', 'Mars',
            'Jupiter', 'Saturn',
            'Uranus', 'Neptune')
 
 def home(request):
-    return render(request, 'astro/home.html', {})
+    return render(request, 'astro/home.html', {
+        'city': request.session.get('astro-observer', None)
+    })
+
 
 def sky(request):
-        observer = config.observer
+        observer = make_observer(request)
         observer.date = ephem.now()
         positions = [
             SkyPosition(body)
@@ -49,7 +60,6 @@ def sky(request):
             'observer': observer,
             'positions': positions,
             'date': observer.date,
-            'local': ephem.localtime(observer.date),
             'refresh_seconds': 6,
         })
 
@@ -128,7 +138,7 @@ def elongation(request):
 
 @plain_response
 def moon(request):
-    astro.moon.main(config.observer)
+    astro.moon.main(make_observer(request))
 
 
 def horizon(request):
@@ -140,7 +150,7 @@ def horizon(request):
         config.as_list('satellites'),
         config.as_list('comets'),
     ]
-    events = list(rise_transit_set(date, bodies))
+    events = list(rise_transit_set(request, date, bodies))
     events.sort(key=operator.attrgetter('date'))
     seconds_to_next_event = 1 + max(
         int(86400 * (events[0].date - date)),
@@ -148,8 +158,8 @@ def horizon(request):
     return render(request, 'astro/horizon.html', {
         'header': Event.header,
         'events': events,
-        'refresh_seconds': seconds_to_next_event,
-        'observer': config.observer,
+        'refresh_seconds': 60, #seconds_to_next_event,
+        'observer': make_observer(request),
     })
 
 
@@ -198,6 +208,40 @@ def print_cities(request):
         print("{:20s} {:+6.2f}° {:+7.2f}° {:5.0f}".format(
             city, float(latitude), float(longitude), elevation))
 
+
+class CityChooserView(generic.FormView):
+    template_name = 'astro/cities.html'
+    form_class = CityChooserForm
+
+    def get_success_url(self):
+        success_url = self.request.GET.get('redirect', 'astro-home')
+        return force_text(reverse_lazy(success_url))
+
+    def get_initial(self):
+        current = self.request.session.get('astro-observer')
+        return {'city': current}
+
+    def form_valid(self, form):
+        city = form.cleaned_data['city']
+        self.request.session['astro-observer'] = city
+        messages.success(
+            self.request,
+            'You choose {}'.format(city))
+        return super().form_valid(form)
+
+cities = CityChooserView.as_view()
+
+
+# def choose_city(request):
+#     name = request.GET.get('name')
+#     if name:
+#         request.session['astro-observer'] = name
+#         logger.debug(request.session['astro-observer'])
+#         messages.info(
+#             request,
+#             'astro-observer set to {}'.format(name))
+#     return HttpResponseRedirect(
+#         force_text(reverse_lazy('astro-home')))
 
 @plain_response
 def print_asteroids(request):
