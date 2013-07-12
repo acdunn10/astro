@@ -85,10 +85,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/dev/howto/static-files/
 
 STATIC_URL = '/static/'
-if DEBUG:
-    STATICFILES_DIRS = (  # and see project.urls for use of this
-        os.path.expanduser('~/Box Documents/www'),
-    )
+STATICFILES_DIRS = (  # and see project.urls for use of this
+    os.path.expanduser('~/Box Documents/www'),
+)
 
 LOGGING = {
     'version': 1,
