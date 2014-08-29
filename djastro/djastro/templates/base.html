@@ -1,0 +1,47 @@
+{% load staticfiles %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}{% if title %}{{ title }}{% endif %}{% endblock %}</title>
+    <meta name="author" content="Your Name Here">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css"
+          rel="stylesheet"
+          media="screen">
+    <link rel="icon"
+          type="image/ico"
+          href="{% static "img/favicon.ico" %}">
+    {% block extrastyle %}{% endblock %}
+    {% block extrahead %}{% endblock %}
+</head>
+
+{% block body %}<body>{% endblock %}{# This is a block to better support maps #}
+    {% block messages %}{% include "messages.html" %}{% endblock %}
+
+    <div class="container">
+    {% block navbar %}{% include "navbar.html" %}{% endblock navbar %}
+    </div>
+
+    {% block container %}
+    <div class="container">
+    {% block content %}
+        {% if title %}<h1>{{ title }}</h1>{% endif %}
+        {% if content %}<pre>{{ content }}</pre>{% endif %}
+    {% endblock content %}
+    </div>
+    {% endblock container %}
+
+    <div class="container">
+    {% block footer %}{#{% include "footer.html" %}#}{% endblock footer %}
+    </div>
+
+    {% block javascript %}
+    <script src='{% static "admin/js/jquery.min.js" %}'></script>
+    <script src='//netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js'></script>
+    {% endblock javascript %}
+
+</body>
+</html>
