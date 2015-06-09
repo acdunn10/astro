@@ -7,7 +7,7 @@
 '''
 import time
 from skyfield.api import sun, JulianDate
-from columbus import columbus
+from . import columbus
 
 
 starting = time.monotonic()

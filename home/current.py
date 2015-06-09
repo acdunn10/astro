@@ -1,21 +1,22 @@
-#!/usr/bin/env python3
-'   Where are the Sun, Moon and planets right now?'
+'''  Where are the Sun, Moon and planets right now?
+        python -m columbus.current
+'''
 from collections import namedtuple
 from operator import attrgetter
 from skyfield.api import earth, moon, sun, now, nine_planets
-from columbus import columbus, eastern
+from . import home, timezone
 
 Position = namedtuple('Position', 'name alt azi')
 
 t = now()
-print('The current time is', t.astimezone(eastern).strftime('%A %d %B %Y at %H:%M'))
+print('The current time is', t.astimezone(timezone).strftime('%A %d %B %Y at %H:%M'))
 
 
 # Generate positions for all the interesting stuff.
 def positions(jd):
     for body in (sun, moon) + nine_planets:
         if body != earth:
-            alt, azi, _ = columbus(jd).observe(body).apparent().altaz()
+            alt, azi, _ = home(jd).observe(body).apparent().altaz()
             yield Position(body.jplname.capitalize(), alt._degrees, azi._degrees)
 
 for p in sorted(positions(t), key=attrgetter('azi')):
