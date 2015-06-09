@@ -5,3 +5,4 @@ output/*
 build/*
 dist/*
 *.egg-info
+sun_position.json
