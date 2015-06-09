@@ -25,4 +25,3 @@ for p in sorted(positions(t), key=attrgetter('azi')):
     else:
         prefix = ' '
     print('{1:2s}{0.name:10s} {0.alt:3.0f}° at {0.azi:03.0f}°'.format(p, prefix))
-
