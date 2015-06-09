@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 '   Where are the Sun, Moon and planets right now?'
 from collections import namedtuple
 from operator import attrgetter
@@ -19,5 +20,9 @@ def positions(jd):
             yield Position(body.jplname.capitalize(), alt._degrees, azi._degrees)
 
 for p in sorted(positions(t), key=attrgetter('azi')):
-    above = '* ' if p.alt > 0 else ''
-    print('{1:2s}{0.name:10s} {0.alt:3.0f}° at {0.azi:03.0f}°'.format(p, above))
+    if p.alt > 0:
+        prefix = '↑' if p.azi <= 180 else '↓'
+    else:
+        prefix = ' '
+    print('{1:2s}{0.name:10s} {0.alt:3.0f}° at {0.azi:03.0f}°'.format(p, prefix))
+

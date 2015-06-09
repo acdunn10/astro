@@ -13,5 +13,3 @@ print(diff)
 index = int(diff / 60 / 4)
 print(index)
 print(sun['alt'][index], sun['azi'][index])
-
-
