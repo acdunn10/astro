@@ -1,8 +1,5 @@
 *.pyc
 tags
 __pycache__
-output/*
-build/*
-dist/*
 *.egg-info
-sun_position.json
+data/*

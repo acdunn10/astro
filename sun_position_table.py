@@ -2,13 +2,13 @@
     The Sun will move at most just less than one degree at my standard location, which
     provides plenty of accuracy for my usual applications. Also, this can be used for
     any year, results will be no different at degree accuracy.
+
+    It takes about 88 seconds to generate this file.
 '''
 import time
-from skyfield.api import earth, sun, JulianDate
-from pytz import timezone
+from skyfield.api import sun, JulianDate
+from columbus import columbus
 
-columbus = earth.topos('39.995 N', '83.004 W')
-eastern = timezone('US/Eastern')
 
 starting = time.monotonic()
 every_four_minutes = range(0, 365 * 1440, 4)
@@ -22,7 +22,7 @@ sun = {
     'azi': list(map(int, azimuth._degrees)),
 }
 import json
-with open('sun_position.json', 'wt') as f:
+with open('data/sun.json', 'wt') as f:
     json.dump(sun, f)
 
-print(time.monotonic() - starting)
+print('Calculation time:', time.monotonic() - starting, 'seconds.')

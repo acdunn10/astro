@@ -3,14 +3,13 @@
 from collections import namedtuple
 from operator import attrgetter
 from skyfield.api import earth, moon, sun, now, nine_planets
-from pytz import timezone
+from columbus import columbus, eastern
 
-columbus = earth.topos('39.995 N', '83.004 W')
-eastern = timezone('US/Eastern')
 Position = namedtuple('Position', 'name alt azi')
 
 t = now()
 print('The current time is', t.astimezone(eastern).strftime('%A %d %B %Y at %H:%M'))
+
 
 # Generate positions for all the interesting stuff.
 def positions(jd):

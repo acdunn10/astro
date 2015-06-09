@@ -1,6 +1,6 @@
 import json
 
-with open('sun_position.json') as f:
+with open('data/sun.json') as f:
     sun = json.load(f)
 
 from skyfield.api import now, JulianDate
