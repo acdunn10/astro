@@ -8,14 +8,14 @@ setup(
     author = 'Mark Sundstrom',
     author_email = 'mark@mhsundstrom.com',
     url = 'https://github.com/mhsundstrom/astro',
-    packages = ['home'],
+    packages = ['astro'],
     include_package_data=False,
     requires=['skyfield'],
     zip_safe=False,
     scripts = [],
     entry_points={
         'console_scripts': [
-            ',astro=home.__main__:current',
+            ',astro=astro.__main__:current',
         ],
     },
 )

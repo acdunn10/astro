@@ -1,5 +1,5 @@
 '''  Where are the Sun, Moon and planets right now?
-        python -m home
+        python -m astro
 '''
 from collections import namedtuple
 from operator import attrgetter
