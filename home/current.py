@@ -1,5 +1,5 @@
 '''  Where are the Sun, Moon and planets right now?
-        python -m columbus.current
+        python -m home.current
 '''
 from collections import namedtuple
 from operator import attrgetter
