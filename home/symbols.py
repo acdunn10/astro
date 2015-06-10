@@ -1,11 +1,6 @@
 # -*- coding: utf8
 """
-    Just for messing around with stuff I don't understand.
-
     Astronomical symbols in Unicode
-
-    It might be fun to try displaying some of these symbols
-    with output from these programs.
 
     http://en.wikipedia.org/wiki/Astronomical_symbols
 """
@@ -22,7 +17,17 @@ names = ('DEGREE SIGN', 'BLACK SUN WITH RAYS',
          'PLUTO', 'COMET', 'ASCENDING NODE', 'DESCENDING NODE',
          'CONJUNCTION', 'OPPOSITION', )
 
+
+def get_symbols():
+    symbols = {name: unicodedata.lookup(name) for name in names}
+    symbols['MOON'] = symbols['FIRST QUARTER MOON']
+    symbols['MARS'] = symbols['MALE SIGN']
+    symbols['VENUS'] = symbols['FEMALE SIGN']
+    return symbols
+
+
 if __name__ == '__main__':
     for name in names:
         c = unicodedata.lookup(name)
         print("{} {:6d} {:6X} {}".format(c, ord(c), ord(c), unicodedata.name(c)))
+        assert unicodedata.name(c) == name
