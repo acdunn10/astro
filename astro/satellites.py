@@ -1,5 +1,4 @@
 ''' Retrieve the latest two-line elements for satellites that interest us.'''
-# TODO: handle retrieve argument.
 import argparse
 import requests
 from skyfield.api import earth, now
@@ -24,8 +23,17 @@ def get_satellites():
 
 
 if __name__ == '__main__':
-    for name, sat in get_satellites().items():
-        if name.startswith('ISS'):
-            position = home(now()).observe(sat).altaz()
-            print(position)
-            break
+    parser = argparse.ArgumentParser(description='Earth satellite retrieval.')
+    parser.add_argument('--retrieve', action='store_true')
+    args = parser.parse_args()
+    if args.retrieve:
+        print('Retrieving satellite elements.')
+        #retrieve()
+    else:
+        satellites = get_satellites()
+        print(len(satellites), 'visual satellites.')
+        for name, sat in satellites.items():
+            if name.startswith('ISS'):
+                position = home(now()).observe(sat).altaz()
+                print(position)
+                break

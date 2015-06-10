@@ -45,7 +45,7 @@ def current():
 
     for p in sorted(generate_positions(t), key=attrgetter('azi')):
         if p.alt > 0:
-            prefix = '↑' if p.azi <= 180 else '↓'
+            prefix = '↑' if p.azi <= 180 else '↓'  # TODO: might not be correct for ISS.
         else:
             prefix = ' '
         print('{1:2s} {0.symbol} {0.name:10s} {0.alt:3.0f}° at {0.azi:03.0f}°'.format(p, prefix))
