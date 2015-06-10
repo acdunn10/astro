@@ -1,5 +1,7 @@
 # Astro
 
+[Documentation for Skyfield](http://rhodesmill.org/skyfield/)
+
 No one should be trying to watch this repo. It's undergoing many
 changes and is very unstable.
 
