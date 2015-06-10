@@ -6,14 +6,10 @@ from operator import attrgetter
 from skyfield.api import earth, moon, sun, now, nine_planets, Star
 from . import home, timezone
 from .symbols import get_symbols
+from .satellites import get_satellites
 
 Position = namedtuple('Position', 'name alt azi symbol')
 
-ISS = '''
-ISS (ZARYA)
-1 25544U 98067A   15161.22302630  .00010597  00000-0  16063-3 0  9993
-2 25544  51.6438 118.8019 0004283  31.6406 103.5052 15.55218929946950
-'''
 
 STARS = {
     'Sirius': Star(ra_hours=(6, 45, 9.3), dec_degrees=(-16, -42, -47.2)),
@@ -42,7 +38,8 @@ def current():
             yield Position(name, alt._degrees, azi._degrees, symbols['BLACK STAR'])
 
         # Earth satellites are special.
-        sat = earth.satellite(ISS)
+        satellites = get_satellites()
+        sat = satellites['ISS (ZARYA)']
         alt, azi, _ = home(jd).observe(sat).altaz()
         yield Position('ISS', alt._degrees, azi._degrees, ' ')
 
@@ -52,6 +49,7 @@ def current():
         else:
             prefix = ' '
         print('{1:2s} {0.symbol} {0.name:10s} {0.alt:3.0f}° at {0.azi:03.0f}°'.format(p, prefix))
+
 
 if __name__ == '__main__':
     current()

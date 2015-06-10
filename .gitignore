@@ -2,3 +2,5 @@
 tags
 __pycache__
 *.egg-info
+.doit.db.db
+visual.txt
