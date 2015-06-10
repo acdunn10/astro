@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = 'Astro',
-    version = 0.1,
+    version = 0.2,
     description = 'Experiments with astronomical calculations',
     author = 'Mark Sundstrom',
     author_email = 'mark@mhsundstrom.com',
