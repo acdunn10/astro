@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # I could parameterize this better, and maybe I will someday. Otherwise it's
     # easy to change for someplace else.
 
-    start = JulianDate(utc=(2015, 1, 1, 5, 0))  # TODO This will stop working in 2016!
+    start = JulianDate(utc=(2015, 1, 1, 5, 0))
     jd = now()
     diff = (jd.utc_datetime() - start.utc_datetime()).total_seconds()
     index = int(diff / 60 / 4)
